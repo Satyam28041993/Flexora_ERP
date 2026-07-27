@@ -1,11 +1,12 @@
 rules_version = '2';
 
-// Deny-all default — same reasoning as firestore.rules. Locked until the
-// User & Permission module defines real access rules.
+// TEMPORARY dev/testing rule — same reasoning as firestore.rules. Any
+// signed-in user has full access; real per-role rules come with the User &
+// Permission module. Unauthenticated access stays blocked.
 service firebase.storage {
   match /b/{bucket}/o {
     match /{allPaths=**} {
-      allow read, write: if false;
+      allow read, write: if request.auth != null;
     }
   }
 }

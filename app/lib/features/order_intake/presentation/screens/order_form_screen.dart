@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -10,9 +11,10 @@ import '../../logic/order_providers.dart';
 
 /// Records a confirmed PO into Flexora (Doc Section 2.2 — Flexora scope starts here).
 ///
-/// NOTE: `createdBy` is a placeholder until the User & Permission module (Doc Section 8,
-/// item 24) is designed and Firebase Auth is wired in. Do not treat this as the real
-/// audit-trail identity.
+/// NOTE: `createdBy` currently stores the Firebase Auth uid of a TEMPORARY
+/// anonymous sign-in (see main.dart) — not a real named user identity. Once
+/// the User & Permission module (Doc Section 8, item 24) is designed, this
+/// should resolve to the actual logged-in user for real audit-trail purposes.
 class OrderFormScreen extends ConsumerStatefulWidget {
   const OrderFormScreen({super.key});
 
@@ -69,7 +71,7 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
     setState(() => _saving = true);
 
     final now = DateTime.now();
-    const currentUser = 'pending_auth_module'; // TODO: replace once Auth/User module is built.
+    final currentUser = FirebaseAuth.instance.currentUser?.uid ?? 'unknown_user';
 
     final primaryJobDocNo = _lineItems.first.jobDocNoController.text.trim();
 

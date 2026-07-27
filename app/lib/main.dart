@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +13,16 @@ Future<void> main() async {
   Object? firebaseInitError;
   try {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+    // TEMPORARY: anonymous sign-in so Firestore/Storage security rules (which
+    // require request.auth != null) can be tested end-to-end before the real
+    // User & Permission module (Doc Section 8, item 24) exists. This is not a
+    // real identity/RBAC system — every anonymous user currently has the same
+    // (full, within the deny-unless-signed-in rule) access. Remove once real
+    // sign-in is built.
+    if (FirebaseAuth.instance.currentUser == null) {
+      await FirebaseAuth.instance.signInAnonymously();
+    }
   } catch (error) {
     firebaseInitError = error;
   }
