@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "185128251587",
+    "project_id": "flexora-pgpl-erp",
+    "storage_bucket": "flexora-pgpl-erp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:185128251587:android:d5462b45c12832aadff276",
+        "android_client_info": {
+          "package_name": "com.pgpl.flexora"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDB5yV8ET5gZetsl9p7GbohZHJJaeusGe4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

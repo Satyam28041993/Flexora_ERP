@@ -1,0 +1,16 @@
+rules_version = '2';
+
+// Deny-all default. Firebase Auth + RBAC + per-collection rules will be added
+// when the User & Permission module (Doc/Flexora-Master-Requirements-v1.2.md,
+// Section 8, item 24) is designed and confirmed with the user — per Golden
+// Rule 2, permissions are not invented ahead of that. Until then, this keeps
+// the data layer locked even though no screen currently enforces auth either
+// (Doc Section 0A: "unauthorized reads/writes must be blocked even if the
+// app UI is bypassed").
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

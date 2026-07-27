@@ -1,0 +1,11 @@
+rules_version = '2';
+
+// Deny-all default — same reasoning as firestore.rules. Locked until the
+// User & Permission module defines real access rules.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

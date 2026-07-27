@@ -1,0 +1,29 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "flexora-pgpl-erp",
+          "appId": "1:185128251587:android:d5462b45c12832aadff276",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "flexora-pgpl-erp",
+          "configurations": {
+            "android": "1:185128251587:android:d5462b45c12832aadff276",
+            "web": "1:185128251587:web:e0b8262173db5047dff276"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "bucket": "flexora-pgpl-erp.firebasestorage.app",
+    "rules": "storage.rules"
+  }
+}
