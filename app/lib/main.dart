@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/app_theme.dart';
-import 'features/order_intake/presentation/screens/order_list_screen.dart';
+import 'features/home/presentation/screens/home_screen.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
@@ -14,12 +14,6 @@ Future<void> main() async {
   try {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-    // TEMPORARY: anonymous sign-in so Firestore/Storage security rules (which
-    // require request.auth != null) can be tested end-to-end before the real
-    // User & Permission module (Doc Section 8, item 24) exists. This is not a
-    // real identity/RBAC system — every anonymous user currently has the same
-    // (full, within the deny-unless-signed-in rule) access. Remove once real
-    // sign-in is built.
     if (FirebaseAuth.instance.currentUser == null) {
       await FirebaseAuth.instance.signInAnonymously();
     }
@@ -43,7 +37,7 @@ class FlexoraApp extends StatelessWidget {
       theme: AppTheme.light(),
       home: firebaseInitError != null
           ? _FirebaseNotConfiguredScreen(error: firebaseInitError!)
-          : const OrderListScreen(),
+          : const HomeScreen(),
     );
   }
 }

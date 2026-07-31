@@ -5,68 +5,71 @@ import 'package:intl/intl.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/models/order_model.dart';
 import '../../logic/order_providers.dart';
+import 'order_detail_screen.dart';
 import 'order_form_screen.dart';
 
-class OrderListScreen extends ConsumerWidget {
+class OrderListScreen extends ConsumerStatefulWidget {
   const OrderListScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<OrderListScreen> createState() => _OrderListScreenState();
+}
+
+class _OrderListScreenState extends ConsumerState<OrderListScreen> {
+  String _searchQuery = '';
+
+  @override
+  Widget build(BuildContext context) {
     final ordersAsync = ref.watch(ordersStreamProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Orders / PO Intake')),
+      appBar: AppBar(
+        title: const Text('Purchase Orders (Order Intake)'),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const OrderFormScreen()),
         ),
-        icon: const Icon(Icons.add),
-        label: const Text('New Order'),
+        icon: const Icon(Icons.add_task),
+        label: const Text('New Order Entry'),
       ),
-      body: ordersAsync.when(
-        data: (orders) {
-          if (orders.isEmpty) {
-            return const _EmptyState();
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: orders.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (context, index) => _OrderCard(order: orders[index]),
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'Could not load orders.\n$error',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppTheme.danger),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Search by PO Number, Customer Name, or Label SKU...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
+          Expanded(
+            child: ordersAsync.when(
+              data: (orders) {
+                final filtered = orders.where((o) {
+                  if (_searchQuery.isEmpty) return true;
+                  return o.poNumber.toLowerCase().contains(_searchQuery) ||
+                      o.customerName.toLowerCase().contains(_searchQuery) ||
+                      o.lineItems.any((item) => item.itemName.toLowerCase().contains(_searchQuery));
+                }).toList();
 
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+                if (filtered.isEmpty) {
+                  return const Center(child: Text('No Purchase Orders registered yet.'));
+                }
 
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.receipt_long_outlined, size: 48, color: AppTheme.textSecondary),
-          const SizedBox(height: 12),
-          Text('No orders yet', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 4),
-          const Text(
-            'Record a confirmed PO to get started.',
-            style: TextStyle(color: AppTheme.textSecondary),
+                return ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) => _POCard(order: filtered[index]),
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (err, _) => Center(child: Text('Error loading Purchase Orders: $err')),
+            ),
           ),
         ],
       ),
@@ -74,102 +77,73 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class _OrderCard extends StatelessWidget {
-  const _OrderCard({required this.order});
+class _POCard extends StatelessWidget {
+  const _POCard({required this.order});
 
   final OrderModel order;
 
   @override
   Widget build(BuildContext context) {
+    final o = order;
     final dateFormat = DateFormat('dd-MM-yyyy');
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      elevation: 2,
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(16),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => OrderDetailScreen(orderId: o.id)),
+        ),
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: Text(
-                    order.clientName,
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                Text(o.poNumber, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.primary)),
+                if (o.attachmentFileName != null) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Row(
+                      children: const [
+                        Icon(Icons.picture_as_pdf, size: 12, color: Colors.red),
+                        SizedBox(width: 4),
+                        Text('ATTACHED', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.red)),
+                      ],
+                    ),
                   ),
-                ),
-                _StatusChip(status: order.status),
+                ],
               ],
             ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 20,
-              runSpacing: 6,
-              children: [
-                _Field(label: 'Job Doc No.', value: order.jobDocNo),
-                _Field(label: 'PO No.', value: order.poNumber),
-                if (order.poDate != null)
-                  _Field(label: 'PO Date', value: dateFormat.format(order.poDate!)),
-                if (order.orderDate != null)
-                  _Field(label: 'Order Date', value: dateFormat.format(order.orderDate!)),
-                if (order.pendingPoQty != null)
-                  _Field(label: 'Pending Qty', value: order.pendingPoQty!.toStringAsFixed(0)),
-                _Field(
-                  label: 'Advance Payment',
-                  value: order.advancePaymentReceived ? 'Received' : 'Pending',
-                ),
-              ],
-            ),
-            if (order.materialDescription != null && order.materialDescription!.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                order.materialDescription!,
-                style: const TextStyle(color: AppTheme.textSecondary),
-              ),
-            ],
+            Text('₹${o.grandTotalAmount.toStringAsFixed(2)}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.accentEmerald)),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _Field extends StatelessWidget {
-  const _Field({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
-        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-      ],
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
-
-  final String status;
-
-  @override
-  Widget build(BuildContext context) {
-    final isActive = status == 'active';
-    final color = isActive ? AppTheme.success : AppTheme.textSecondary;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        status,
-        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 8.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Customer: ${o.customerName}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Text('PO Date: ${dateFormat.format(o.poDate)}', style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                  const SizedBox(width: 16),
+                  Text('${o.lineItems.length} Label SKU(s)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.primary)),
+                  const SizedBox(width: 16),
+                  Text('${o.totalQuantityPcs.toInt()} Pcs', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ],
+          ),
+        ),
+        trailing: const Icon(Icons.chevron_right),
       ),
     );
   }

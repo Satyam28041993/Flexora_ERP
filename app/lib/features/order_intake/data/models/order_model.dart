@@ -1,55 +1,143 @@
-/// Order/PO Intake data model.
+import 'package:flutter/foundation.dart';
+
+/// Single Line Item inside a Purchase Order (PO).
 ///
-/// Field set is based on:
-/// - Doc/Flexora-Master-Requirements-v1.2.md (Section 2.2 — Flexora scope starts at
-///   confirmed PO + advance payment received)
-/// - The company's existing "New Order Detail and Status Tracking" Google Sheet
-///   (Pending / Shedule / Postpress / Dispatched tabs), which is the current real-world
-///   source for these fields.
-///
-/// OPEN QUESTIONS (do not assume — see Doc Section 10 / CLAUDE.md Golden Rule 2):
-/// - The sheet has two separate columns "Approval Date" and "Approved Date" whose exact
-///   meaning is not yet confirmed by the user (artwork approval vs internal PO approval).
-///   Both are kept as generic, separately-named fields until clarified.
-/// - No ISO-controlled PO/Order Acceptance format has been supplied yet. Document-control
-///   fields (Doc No., Revision, Approved By, etc.) are intentionally NOT added until that
-///   format is shared.
-/// - Advance payment amount/ledger is NOT tracked here — per user, Flexora only holds a
-///   reference/flag for now; the ledger of record remains Tally.
+/// Implements Real Flexo PO Structure:
+/// Supports multiple label SKUs per PO with size, HSN 48211020, quantity, unit rate (Rs.), and line total.
+@immutable
+class OrderLineItemModel {
+  final String id;
+  final int itemNo;
+
+  final String hsnCode; // 48211020 for printed labels & stickers
+  final String itemName;
+  final String labelDescription;
+
+  final double sizeWidthMm;
+  final double sizeHeightMm;
+  final String substrateSpec;
+
+  final double quantityPcs;
+  final double unitRateRs;
+  final double lineAmountRs;
+
+  final DateTime? deliveryScheduleDate;
+
+  const OrderLineItemModel({
+    required this.id,
+    required this.itemNo,
+    required this.itemName,
+    required this.quantityPcs,
+    required this.unitRateRs,
+    required this.lineAmountRs,
+    this.hsnCode = '48211020',
+    this.labelDescription = '',
+    this.sizeWidthMm = 0.0,
+    this.sizeHeightMm = 0.0,
+    this.substrateSpec = 'Self-Adhesive Chromo Paper',
+    this.deliveryScheduleDate,
+  });
+
+  factory OrderLineItemModel.fromMap(Map<String, dynamic> map) {
+    return OrderLineItemModel(
+      id: map['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      itemNo: map['itemNo'] as int? ?? 1,
+      hsnCode: map['hsnCode'] as String? ?? '48211020',
+      itemName: map['itemName'] as String? ?? '',
+      labelDescription: map['labelDescription'] as String? ?? '',
+      sizeWidthMm: (map['sizeWidthMm'] as num?)?.toDouble() ?? 0.0,
+      sizeHeightMm: (map['sizeHeightMm'] as num?)?.toDouble() ?? 0.0,
+      substrateSpec: map['substrateSpec'] as String? ?? 'Self-Adhesive Chromo Paper',
+      quantityPcs: (map['quantityPcs'] as num?)?.toDouble() ?? 0.0,
+      unitRateRs: (map['unitRateRs'] as num?)?.toDouble() ?? 0.0,
+      lineAmountRs: (map['lineAmountRs'] as num?)?.toDouble() ?? 0.0,
+      deliveryScheduleDate: map['deliveryScheduleDate'] != null
+          ? DateTime.parse(map['deliveryScheduleDate'] as String)
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'itemNo': itemNo,
+      'hsnCode': hsnCode,
+      'itemName': itemName,
+      'labelDescription': labelDescription,
+      'sizeWidthMm': sizeWidthMm,
+      'sizeHeightMm': sizeHeightMm,
+      'substrateSpec': substrateSpec,
+      'quantityPcs': quantityPcs,
+      'unitRateRs': unitRateRs,
+      'lineAmountRs': lineAmountRs,
+      'deliveryScheduleDate': deliveryScheduleDate?.toIso8601String(),
+    };
+  }
+
+  OrderLineItemModel copyWith({
+    String? itemName,
+    String? labelDescription,
+    double? sizeWidthMm,
+    double? sizeHeightMm,
+    String? substrateSpec,
+    double? quantityPcs,
+    double? unitRateRs,
+    double? lineAmountRs,
+  }) {
+    return OrderLineItemModel(
+      id: id,
+      itemNo: itemNo,
+      hsnCode: hsnCode,
+      itemName: itemName ?? this.itemName,
+      labelDescription: labelDescription ?? this.labelDescription,
+      sizeWidthMm: sizeWidthMm ?? this.sizeWidthMm,
+      sizeHeightMm: sizeHeightMm ?? this.sizeHeightMm,
+      substrateSpec: substrateSpec ?? this.substrateSpec,
+      quantityPcs: quantityPcs ?? this.quantityPcs,
+      unitRateRs: unitRateRs ?? this.unitRateRs,
+      lineAmountRs: lineAmountRs ?? (quantityPcs != null || unitRateRs != null ? ((quantityPcs ?? this.quantityPcs) * (unitRateRs ?? this.unitRateRs)) : this.lineAmountRs),
+      deliveryScheduleDate: deliveryScheduleDate,
+    );
+  }
+}
+
+/// Purchase Order (PO) Master Data Model.
+@immutable
 class OrderModel {
   final String id;
   final String plantId;
 
-  // Job/document reference (existing numbering scheme, e.g. "06/021")
-  final String jobDocNo;
+  final String poNumber; // e.g. PK/MUM/155/2026-2027, BM/PGPL/26-27/051, PO:05051
+  final DateTime poDate;
 
-  final String clientName;
+  final String customerId;
+  final String customerName;
+  final String customerGstNo;
 
-  final DateTime? orderDate;
+  final String shippingAddress;
+  final String? deliveryScheduleText;
+  final int paymentTermsDays;
+  final String? specialNotes;
 
-  // A single PO can cover multiple products/line items and can be revised
-  // (confirmed by user) — see OrderLineItem below.
-  final String poNumber;
-  final DateTime? poDate;
+  // Attached PO Document (PDF / Image)
+  final String? attachmentFileName;
+  final String? attachmentFilePath;
+  final String? attachmentFileType; // pdf, image
 
-  // Present in the source sheet; exact business meaning not yet confirmed.
-  final DateTime? approvalDate;
-  final DateTime? approvedDate;
+  // Multiple Line Items / Label SKUs
+  final List<OrderLineItemModel> lineItems;
 
-  final String? materialDescription;
-  final String? plant;
+  // Financial Breakdown (Rs.)
+  final double taxableSubtotal;
+  final double gstRatePercent; // default 18%
+  final double cgstAmount;
+  final double sgstAmount;
+  final double igstAmount;
+  final double freightCharges;
+  final double oneTimePunchCost;
+  final double grandTotalAmount;
 
-  final double? totalRequiredQty;
-  final double? pendingPoQty;
-
-  // Advance payment: reference/flag only, not a ledger (per user decision).
-  final bool advancePaymentReceived;
-
-  // PO source document, uploaded to Firebase Storage; this field stores the
-  // Storage reference path only (per locked stack: Firestore never stores large files).
-  final String? poFileStoragePath;
-
-  final String status;
+  final String status; // Pending, Verified, Processing, Completed, Cancelled
 
   final DateTime createdAt;
   final String createdBy;
@@ -59,46 +147,65 @@ class OrderModel {
   const OrderModel({
     required this.id,
     required this.plantId,
-    required this.jobDocNo,
-    required this.clientName,
     required this.poNumber,
-    required this.status,
+    required this.poDate,
+    required this.customerId,
+    required this.customerName,
+    required this.customerGstNo,
+    required this.shippingAddress,
+    required this.lineItems,
+    required this.taxableSubtotal,
+    required this.grandTotalAmount,
     required this.createdAt,
     required this.createdBy,
-    this.orderDate,
-    this.poDate,
-    this.approvalDate,
-    this.approvedDate,
-    this.materialDescription,
-    this.plant,
-    this.totalRequiredQty,
-    this.pendingPoQty,
-    this.advancePaymentReceived = false,
-    this.poFileStoragePath,
+    this.deliveryScheduleText,
+    this.paymentTermsDays = 30,
+    this.specialNotes,
+    this.attachmentFileName,
+    this.attachmentFilePath,
+    this.attachmentFileType,
+    this.gstRatePercent = 18.0,
+    this.cgstAmount = 0.0,
+    this.sgstAmount = 0.0,
+    this.igstAmount = 0.0,
+    this.freightCharges = 0.0,
+    this.oneTimePunchCost = 0.0,
+    this.status = 'Pending',
     this.updatedAt,
     this.updatedBy,
   });
 
   factory OrderModel.fromMap(String id, Map<String, dynamic> map) {
+    final rawItems = map['lineItems'] as List<dynamic>? ?? [];
+    final items = rawItems.map((item) => OrderLineItemModel.fromMap(item as Map<String, dynamic>)).toList();
+
     return OrderModel(
       id: id,
-      plantId: map['plantId'] as String,
-      jobDocNo: map['jobDocNo'] as String,
-      clientName: map['clientName'] as String,
-      poNumber: map['poNumber'] as String,
-      status: map['status'] as String,
-      createdAt: DateTime.parse(map['createdAt'] as String),
-      createdBy: map['createdBy'] as String,
-      orderDate: map['orderDate'] != null ? DateTime.parse(map['orderDate'] as String) : null,
-      poDate: map['poDate'] != null ? DateTime.parse(map['poDate'] as String) : null,
-      approvalDate: map['approvalDate'] != null ? DateTime.parse(map['approvalDate'] as String) : null,
-      approvedDate: map['approvedDate'] != null ? DateTime.parse(map['approvedDate'] as String) : null,
-      materialDescription: map['materialDescription'] as String?,
-      plant: map['plant'] as String?,
-      totalRequiredQty: (map['totalRequiredQty'] as num?)?.toDouble(),
-      pendingPoQty: (map['pendingPoQty'] as num?)?.toDouble(),
-      advancePaymentReceived: map['advancePaymentReceived'] as bool? ?? false,
-      poFileStoragePath: map['poFileStoragePath'] as String?,
+      plantId: map['plantId'] as String? ?? 'plant-1',
+      poNumber: map['poNumber'] as String? ?? '',
+      poDate: map['poDate'] != null ? DateTime.parse(map['poDate'] as String) : DateTime.now(),
+      customerId: map['customerId'] as String? ?? '',
+      customerName: map['customerName'] as String? ?? '',
+      customerGstNo: map['customerGstNo'] as String? ?? '',
+      shippingAddress: map['shippingAddress'] as String? ?? '',
+      deliveryScheduleText: map['deliveryScheduleText'] as String?,
+      paymentTermsDays: map['paymentTermsDays'] as int? ?? 30,
+      specialNotes: map['specialNotes'] as String?,
+      attachmentFileName: map['attachmentFileName'] as String?,
+      attachmentFilePath: map['attachmentFilePath'] as String?,
+      attachmentFileType: map['attachmentFileType'] as String?,
+      lineItems: items,
+      taxableSubtotal: (map['taxableSubtotal'] as num?)?.toDouble() ?? 0.0,
+      gstRatePercent: (map['gstRatePercent'] as num?)?.toDouble() ?? 18.0,
+      cgstAmount: (map['cgstAmount'] as num?)?.toDouble() ?? 0.0,
+      sgstAmount: (map['sgstAmount'] as num?)?.toDouble() ?? 0.0,
+      igstAmount: (map['igstAmount'] as num?)?.toDouble() ?? 0.0,
+      freightCharges: (map['freightCharges'] as num?)?.toDouble() ?? 0.0,
+      oneTimePunchCost: (map['oneTimePunchCost'] as num?)?.toDouble() ?? 0.0,
+      grandTotalAmount: (map['grandTotalAmount'] as num?)?.toDouble() ?? 0.0,
+      status: map['status'] as String? ?? 'Pending',
+      createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt'] as String) : DateTime.now(),
+      createdBy: map['createdBy'] as String? ?? 'system',
       updatedAt: map['updatedAt'] != null ? DateTime.parse(map['updatedAt'] as String) : null,
       updatedBy: map['updatedBy'] as String?,
     );
@@ -107,36 +214,34 @@ class OrderModel {
   Map<String, dynamic> toMap() {
     return {
       'plantId': plantId,
-      'jobDocNo': jobDocNo,
-      'clientName': clientName,
       'poNumber': poNumber,
+      'poDate': poDate.toIso8601String(),
+      'customerId': customerId,
+      'customerName': customerName,
+      'customerGstNo': customerGstNo,
+      'shippingAddress': shippingAddress,
+      'deliveryScheduleText': deliveryScheduleText,
+      'paymentTermsDays': paymentTermsDays,
+      'specialNotes': specialNotes,
+      'attachmentFileName': attachmentFileName,
+      'attachmentFilePath': attachmentFilePath,
+      'attachmentFileType': attachmentFileType,
+      'lineItems': lineItems.map((item) => item.toMap()).toList(),
+      'taxableSubtotal': taxableSubtotal,
+      'gstRatePercent': gstRatePercent,
+      'cgstAmount': cgstAmount,
+      'sgstAmount': sgstAmount,
+      'igstAmount': igstAmount,
+      'freightCharges': freightCharges,
+      'oneTimePunchCost': oneTimePunchCost,
+      'grandTotalAmount': grandTotalAmount,
       'status': status,
       'createdAt': createdAt.toIso8601String(),
       'createdBy': createdBy,
-      'orderDate': orderDate?.toIso8601String(),
-      'poDate': poDate?.toIso8601String(),
-      'approvalDate': approvalDate?.toIso8601String(),
-      'approvedDate': approvedDate?.toIso8601String(),
-      'materialDescription': materialDescription,
-      'plant': plant,
-      'totalRequiredQty': totalRequiredQty,
-      'pendingPoQty': pendingPoQty,
-      'advancePaymentReceived': advancePaymentReceived,
-      'poFileStoragePath': poFileStoragePath,
       'updatedAt': updatedAt?.toIso8601String(),
       'updatedBy': updatedBy,
     };
   }
-}
 
-/// Order status values.
-/// Deliberately minimal: Golden Rule 2 (Doc/Flexora-Master-Requirements-v1.2.md, Section 0)
-/// prohibits inventing workflow/business rules that haven't been confirmed. Only "active"
-/// and "cancelled" are tracked here; any further status workflow (e.g. linking to Artwork
-/// Approval stage) is out of scope until that module is reached and the user confirms it.
-class OrderStatus {
-  static const String active = 'active';
-  static const String cancelled = 'cancelled';
-
-  static const List<String> values = [active, cancelled];
+  double get totalQuantityPcs => lineItems.fold(0.0, (sum, item) => sum + item.quantityPcs);
 }
