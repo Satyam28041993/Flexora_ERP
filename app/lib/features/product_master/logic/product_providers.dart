@@ -19,3 +19,8 @@ final productArtworksStreamProvider = StreamProvider.family<List<ArtworkVersionM
   final repo = ref.watch(productRepositoryProvider);
   return repo.watchArtworks(productId);
 });
+
+final nextSkuCodeFutureProvider = FutureProvider.autoDispose<String>((ref) {
+  final repo = ref.watch(productRepositoryProvider);
+  return repo.getNextSkuCode(plantId: DefaultPlant.id);
+});

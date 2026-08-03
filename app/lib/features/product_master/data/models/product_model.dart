@@ -62,6 +62,7 @@ class PrintSpecModel {
   final String varnishType; // Matt, Gloss, Drip Off, UV, None
   final String laminationType; // Thermal Gloss, Thermal Matt, Cold Foil, None
   final String specialCoating;
+  final bool hasNumbering;
 
   const PrintSpecModel({
     required this.colorCount,
@@ -71,6 +72,7 @@ class PrintSpecModel {
     this.varnishType = 'None',
     this.laminationType = 'None',
     this.specialCoating = '',
+    this.hasNumbering = false,
   });
 
   factory PrintSpecModel.fromMap(Map<String, dynamic> map) {
@@ -82,6 +84,7 @@ class PrintSpecModel {
       varnishType: map['varnishType'] as String? ?? 'None',
       laminationType: map['laminationType'] as String? ?? 'None',
       specialCoating: map['specialCoating'] as String? ?? '',
+      hasNumbering: map['hasNumbering'] as bool? ?? false,
     );
   }
 
@@ -94,6 +97,7 @@ class PrintSpecModel {
       'varnishType': varnishType,
       'laminationType': laminationType,
       'specialCoating': specialCoating,
+      'hasNumbering': hasNumbering,
     };
   }
 }

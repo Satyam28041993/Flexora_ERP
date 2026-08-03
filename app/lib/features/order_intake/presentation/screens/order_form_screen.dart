@@ -10,6 +10,8 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/po_document_parser.dart';
 import '../../../customer_master/data/models/customer_model.dart';
 import '../../../customer_master/logic/customer_providers.dart';
+import '../../../product_master/data/models/product_model.dart';
+import '../../../product_master/presentation/screens/product_form_screen.dart';
 import '../../data/models/order_model.dart';
 import '../../logic/order_providers.dart';
 
@@ -271,6 +273,40 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
       }
     } finally {
       if (mounted) setState(() => _isExtracting = false);
+    }
+  }
+
+  Future<void> _openSkuMasterPopup(int rowIndex) async {
+    final result = await showDialog<ProductModel>(
+      context: context,
+      builder: (context) {
+        final row = _lineItemRows[rowIndex];
+        return Dialog(
+          insetPadding: const EdgeInsets.all(20),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              width: 1000,
+              height: 800,
+              child: ProductFormScreen(
+                preselectedCustomerId: _selectedCustomer?.id,
+                preselectedName: row.itemNameController.text,
+                preselectedWidth: row.widthController.text,
+                preselectedHeight: row.heightController.text,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        final row = _lineItemRows[rowIndex];
+        row.itemNameController.text = result.productName;
+        row.widthController.text = result.labelSpec.widthMm.toString();
+        row.heightController.text = result.labelSpec.heightMm.toString();
+      });
     }
   }
 
@@ -599,6 +635,11 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
                               decoration: const InputDecoration(labelText: 'Label Name / Item Description *', hintText: 'e.g. Nomocheck Triple Action 500ml'),
                               validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
                             ),
+                          ),
+                          IconButton(
+                            onPressed: () => _openSkuMasterPopup(idx),
+                            icon: const Icon(Icons.add_box, color: AppTheme.primary),
+                            tooltip: 'Create New SKU',
                           ),
                           const SizedBox(width: 8),
                           if (_lineItemRows.length > 1)

@@ -9,6 +9,7 @@ abstract class ProductRepository {
   Future<ProductModel?> getProduct(String id);
   Future<String> createProduct(ProductModel product);
   Future<void> updateProduct(ProductModel product);
+  Future<String> getNextSkuCode({required String plantId});
 
   Stream<List<ArtworkVersionModel>> watchArtworks(String productId);
   Future<String> addArtworkVersion(String productId, ArtworkVersionModel artwork);
@@ -60,6 +61,36 @@ class FirestoreProductRepository implements ProductRepository {
   @override
   Future<void> updateProduct(ProductModel product) async {
     await _products.doc(product.id).update(product.toMap());
+  }
+
+  @override
+  Future<String> getNextSkuCode({required String plantId}) async {
+    try {
+      final querySnapshot = await _products
+          .where('internalSkuCode', isGreaterThanOrEqualTo: 'PG/SKU/')
+          .where('internalSkuCode', isLessThan: 'PG/SKU/\uf8ff')
+          .orderBy('internalSkuCode', descending: true)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        final code = querySnapshot.docs.first.data()['internalSkuCode'] as String?;
+        if (code != null && code.startsWith('PG/SKU/')) {
+          final numberString = code.replaceFirst('PG/SKU/', '');
+          final number = int.tryParse(numberString);
+          if (number != null) {
+            final nextNumber = number + 1;
+            return 'PG/SKU/${nextNumber.toString().padLeft(3, '0')}';
+          }
+        }
+      }
+    } catch (e) {
+      // Fallback if query fails
+      print('Error in getNextSkuCode query: $e');
+    }
+
+    // Default if no documents found or error
+    return 'PG/SKU/001';
   }
 
   @override

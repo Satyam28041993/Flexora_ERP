@@ -9,10 +9,20 @@ import '../../data/models/product_model.dart';
 import '../../logic/product_providers.dart';
 
 class ProductFormScreen extends ConsumerStatefulWidget {
-  const ProductFormScreen({super.key, this.product, this.preselectedCustomerId});
+  const ProductFormScreen({
+    super.key,
+    this.product,
+    this.preselectedCustomerId,
+    this.preselectedName,
+    this.preselectedWidth,
+    this.preselectedHeight,
+  });
 
   final ProductModel? product;
   final String? preselectedCustomerId;
+  final String? preselectedName;
+  final String? preselectedWidth;
+  final String? preselectedHeight;
 
   @override
   ConsumerState<ProductFormScreen> createState() => _ProductFormScreenState();
@@ -43,6 +53,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   String _printMethod = 'Flexo 8-Color';
   String _varnishType = 'None';
   String _laminationType = 'None';
+  bool _hasNumbering = false;
 
   // Machine Specs
   late TextEditingController _webWidthController;
@@ -65,12 +76,27 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     final p = widget.product;
 
     _skuCodeController = TextEditingController(text: p?.internalSkuCode ?? '');
+    if (p == null) {
+      Future.microtask(() async {
+        try {
+          final repo = ref.read(productRepositoryProvider);
+          final nextCode = await repo.getNextSkuCode(plantId: DefaultPlant.id);
+          if (mounted && _skuCodeController.text.isEmpty) {
+            setState(() {
+              _skuCodeController.text = nextCode;
+            });
+          }
+        } catch (e) {
+          debugPrint('Error fetching next SKU code: $e');
+        }
+      });
+    }
     _custProductCodeController = TextEditingController(text: p?.customerProductCode ?? '');
-    _productNameController = TextEditingController(text: p?.productName ?? '');
+    _productNameController = TextEditingController(text: p?.productName ?? widget.preselectedName ?? '');
     _descriptionController = TextEditingController(text: p?.description ?? '');
 
-    _widthController = TextEditingController(text: p?.labelSpec.widthMm.toString() ?? '');
-    _heightController = TextEditingController(text: p?.labelSpec.heightMm.toString() ?? '');
+    _widthController = TextEditingController(text: p?.labelSpec.widthMm.toString() ?? widget.preselectedWidth ?? '');
+    _heightController = TextEditingController(text: p?.labelSpec.heightMm.toString() ?? widget.preselectedHeight ?? '');
     _shape = p?.labelSpec.shape ?? 'Rectangle';
     _substrateController = TextEditingController(text: p?.labelSpec.substrateMaterial ?? 'Chromo Paper');
     _gsmMicronController = TextEditingController(text: p?.labelSpec.gsmMicron ?? '80 GSM');
@@ -82,6 +108,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _printMethod = p?.printSpec.printMethod ?? 'Flexo 8-Color';
     _varnishType = p?.printSpec.varnishType ?? 'None';
     _laminationType = p?.printSpec.laminationType ?? 'None';
+    _hasNumbering = p?.printSpec.hasNumbering ?? false;
 
     _webWidthController = TextEditingController(text: p?.machineSpec.webWidthMm.toString() ?? '220');
     _repeatCylinderController = TextEditingController(text: p?.machineSpec.repeatCylinderMm.toString() ?? '300');
@@ -155,6 +182,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           printMethod: _printMethod,
           varnishType: _varnishType,
           laminationType: _laminationType,
+          hasNumbering: _hasNumbering,
         ),
         machineSpec: MachineSpecModel(
           webWidthMm: double.parse(_webWidthController.text.trim()),
@@ -192,7 +220,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 : 'Product Master updated successfully'),
           ),
         );
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(productData);
       }
     } catch (e) {
       if (mounted) {
@@ -545,9 +573,17 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 );
               }).toList(),
             ),
+            const SizedBox(height: 12),
+            SwitchListTile(
+              title: const Text('Sequential Numbering Required?', style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: const Text('Check if this SKU requires variable data printing (e.g. barcodes, serial numbers)'),
+              value: _hasNumbering,
+              onChanged: (val) => setState(() => _hasNumbering = val),
+              activeColor: AppTheme.primary,
+            ),
             const SizedBox(height: 28),
             SizedBox(
-              height: 48,
+              height: 50,
               child: ElevatedButton.icon(
                 onPressed: _isSaving ? null : _save,
                 icon: _isSaving

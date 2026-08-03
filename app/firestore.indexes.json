@@ -88,6 +88,14 @@
         { "fieldPath": "plantId", "order": "ASCENDING" },
         { "fieldPath": "entryDate", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "products",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "plantId", "order": "ASCENDING" },
+        { "fieldPath": "internalSkuCode", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
