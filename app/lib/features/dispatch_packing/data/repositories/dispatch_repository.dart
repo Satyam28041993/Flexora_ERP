@@ -30,6 +30,12 @@ class FirestoreDispatchRepository implements DispatchRepository {
   CollectionReference<Map<String, dynamic>> get _challans =>
       _firestore.collection(FirestorePaths.dispatchChallans);
 
+  CollectionReference<Map<String, dynamic>> get _jobCards =>
+      _firestore.collection(FirestorePaths.jobCards);
+
+  CollectionReference<Map<String, dynamic>> get _auditLogs =>
+      _firestore.collection(FirestorePaths.auditLogs);
+
   @override
   Stream<List<FinishedRollModel>> watchFinishedRolls({required String plantId, String? jobCardId}) {
     Query<Map<String, dynamic>> query = _finishedRolls.where('plantId', isEqualTo: plantId);
@@ -83,7 +89,65 @@ class FirestoreDispatchRepository implements DispatchRepository {
 
   @override
   Future<String> createDispatchChallan(DispatchChallanModel challan) async {
+    // 1. Create Dispatch Challan Document
     final docRef = await _challans.add(challan.toMap());
+
+    final batch = _firestore.batch();
+
+    // 2. Update Finished Rolls status for this Job Card to 'Dispatched'
+    final rollDocs = await _finishedRolls
+        .where('jobCardId', isEqualTo: challan.jobCardId)
+        .where('plantId', isEqualTo: challan.plantId)
+        .get();
+
+    for (final doc in rollDocs.docs) {
+      if (doc.data()['status'] != 'Dispatched') {
+        batch.update(doc.reference, {
+          'status': 'Dispatched',
+          'challanNo': challan.challanNo,
+          'dispatchedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    }
+
+    // 3. Update Job Card status & Dispatched Quantities
+    if (challan.jobCardId.isNotEmpty) {
+      final jobDocRef = _jobCards.doc(challan.jobCardId);
+      final newStatus = challan.isFullyDispatched ? 'Dispatched' : 'Partially Dispatched';
+
+      batch.set(
+        jobDocRef,
+        {
+          'status': newStatus,
+          'dispatchedQtyPcs': FieldValue.increment(challan.dispatchedQtyPcs),
+          'lastDispatchedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+    }
+
+    // 4. Record Audit Trail
+    final auditRef = _auditLogs.doc();
+    batch.set(auditRef, {
+      'plantId': challan.plantId,
+      'action': 'DISPATCH_CHALLAN_ISSUED',
+      'entity': 'dispatch_challan',
+      'entityId': docRef.id,
+      'details': {
+        'challanNo': challan.challanNo,
+        'jobCardNo': challan.jobCardNo,
+        'customerName': challan.customerName,
+        'dispatchedQtyPcs': challan.dispatchedQtyPcs,
+        'balanceQtyPcs': challan.balanceQtyPcs,
+        'vehicleNo': challan.vehicleNo,
+      },
+      'performedBy': challan.dispatchedBy,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
+
     return docRef.id;
   }
 }

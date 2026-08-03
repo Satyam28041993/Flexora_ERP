@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:printing/printing.dart';
 
 import '../../../../core/constants/firestore_paths.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../job_card_master/data/models/job_card_model.dart';
 import '../../../job_card_master/logic/job_card_providers.dart';
 import '../../data/models/dispatch_challan_model.dart';
+import '../../logic/dispatch_challan_pdf_generator.dart';
 import '../../logic/dispatch_providers.dart';
 
 class DispatchFormScreen extends ConsumerStatefulWidget {
@@ -53,7 +55,7 @@ class _DispatchFormScreenState extends ConsumerState<DispatchFormScreen> {
     super.dispose();
   }
 
-  Future<void> _save() async {
+  Future<void> _save({bool printPdfAfterSave = false}) async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedJobCard == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a Job Card')));
@@ -91,9 +93,15 @@ class _DispatchFormScreenState extends ConsumerState<DispatchFormScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Dispatch Challan issued successfully')),
+          const SnackBar(content: Text('Dispatch Challan issued & finished stock updated!')),
         );
-        Navigator.of(context).pop();
+
+        if (printPdfAfterSave) {
+          final pdfBytes = await DispatchChallanPdfGenerator.generateChallanPdf(challan: challan);
+          await Printing.layoutPdf(onLayout: (_) => pdfBytes, name: 'Dispatch_Challan_${challan.challanNo}.pdf');
+        }
+
+        if (mounted) Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
@@ -193,13 +201,30 @@ class _DispatchFormScreenState extends ConsumerState<DispatchFormScreen> {
               validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
             ),
             const SizedBox(height: 28),
-            SizedBox(
-              height: 48,
-              child: ElevatedButton.icon(
-                onPressed: _isSaving ? null : _save,
-                icon: const Icon(Icons.local_shipping),
-                label: Text(_isSaving ? 'Issuing...' : 'Issue Dispatch Challan'),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      onPressed: _isSaving ? null : () => _save(printPdfAfterSave: false),
+                      icon: const Icon(Icons.save),
+                      label: Text(_isSaving ? 'Issuing...' : 'Save Challan'),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: _isSaving ? null : () => _save(printPdfAfterSave: true),
+                      icon: const Icon(Icons.print),
+                      label: Text(_isSaving ? 'Issuing...' : 'Save & Print GST Challan'),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
