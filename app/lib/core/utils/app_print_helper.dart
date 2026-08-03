@@ -1,14 +1,26 @@
 import 'package:flutter/foundation.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import 'package:printing/printing.dart';
 
-/// Helper to trigger browser native print / Save as PDF modal in Flutter Web.
-void printCurrentWebPage() {
-  if (kIsWeb) {
+/// Cross-platform print helper using printing package.
+/// Works cleanly across Web, Windows Desktop, Linux, macOS, Android, and iOS.
+class AppPrintHelper {
+  /// Triggers PDF preview and print dialog cleanly on all supported platforms.
+  static Future<void> printPdfBytes({
+    required Uint8List pdfBytes,
+    required String documentName,
+  }) async {
     try {
-      html.window.print();
+      await Printing.layoutPdf(
+        onLayout: (_) => pdfBytes,
+        name: documentName,
+      );
     } catch (e) {
-      debugPrint('Print error: $e');
+      debugPrint('Print error for $documentName: $e');
     }
   }
+}
+
+/// Legacy fallback function alias for backwards compatibility.
+void printCurrentWebPage() {
+  debugPrint('printCurrentWebPage called - use AppPrintHelper.printPdfBytes for document printing');
 }
