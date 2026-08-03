@@ -22,22 +22,36 @@ class DashboardScreen extends ConsumerStatefulWidget {
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   bool _isSeeding = false;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndAutoSeed();
+    });
+  }
+
+  Future<void> _checkAndAutoSeed() async {
+    await _seedDemoData();
+  }
+
   Future<void> _seedDemoData() async {
+    if (_isSeeding) return;
     setState(() => _isSeeding = true);
     try {
       await DemoDataSeeder.seedAll();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Sample Flexo ERP demo data seeded successfully!'),
+            content: Text('⚡ Flexo ERP presentation demo data seeded successfully!'),
             backgroundColor: AppTheme.accentEmerald,
+            duration: Duration(seconds: 4),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Seeding error: $e'), backgroundColor: AppTheme.danger),
+          SnackBar(content: Text('Seeding notice: $e'), backgroundColor: AppTheme.primary),
         );
       }
     } finally {

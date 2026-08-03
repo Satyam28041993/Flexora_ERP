@@ -32,10 +32,12 @@ class FirestoreShadeCardRepository implements ShadeCardRepository {
       query = query.where('productId', isEqualTo: productId);
     }
     return query
-        .orderBy('dateCreated', descending: true)
         .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => ShadeCardModel.fromMap(doc.id, doc.data())).toList());
+        .map((snapshot) {
+          final list = snapshot.docs.map((doc) => ShadeCardModel.fromMap(doc.id, doc.data())).toList();
+          list.sort((a, b) => b.dateCreated.compareTo(a.dateCreated));
+          return list;
+        });
   }
 
   @override

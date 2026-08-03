@@ -7,6 +7,7 @@ import '../models/master_card_model.dart';
 abstract class JobCardRepository {
   Stream<List<JobCardModel>> watchJobCards({required String plantId});
   Future<JobCardModel?> getJobCard(String id);
+  Future<String> getNextJobCardNumber();
   Future<String> createJobCard(JobCardModel jobCard);
   Future<void> updateJobCard(JobCardModel jobCard);
 
@@ -29,10 +30,12 @@ class FirestoreJobCardRepository implements JobCardRepository {
   Stream<List<JobCardModel>> watchJobCards({required String plantId}) {
     return _jobCards
         .where('plantId', isEqualTo: plantId)
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => JobCardModel.fromMap(doc.id, doc.data())).toList());
+        .map((snapshot) {
+          final list = snapshot.docs.map((doc) => JobCardModel.fromMap(doc.id, doc.data())).toList();
+          list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return list;
+        });
   }
 
   @override
@@ -40,6 +43,41 @@ class FirestoreJobCardRepository implements JobCardRepository {
     final doc = await _jobCards.doc(id).get();
     if (!doc.exists) return null;
     return JobCardModel.fromMap(doc.id, doc.data()!);
+  }
+
+  @override
+  Future<String> getNextJobCardNumber() async {
+    final now = DateTime.now();
+    final monthStr = now.month.toString().padLeft(2, '0');
+    final yearStr = now.year.toString();
+    final counterRef = _firestore.collection('counters').doc('job_cards_${yearStr}_$monthStr');
+
+    try {
+      return await _firestore.runTransaction((transaction) async {
+        final snapshot = await transaction.get(counterRef);
+        int nextSeq = 1;
+        if (snapshot.exists && snapshot.data() != null) {
+          nextSeq = ((snapshot.data()!['lastSeq'] as num?) ?? 0).toInt() + 1;
+        }
+        transaction.set(
+          counterRef,
+          {
+            'lastSeq': nextSeq,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+
+        final seqFormatted = nextSeq.toString().padLeft(3, '0');
+        return '$monthStr/$seqFormatted';
+      });
+    } catch (_) {
+      // Fallback in case of transaction delay/offline mode
+      final snapshot = await _jobCards.get();
+      final count = snapshot.docs.length + 1;
+      final seqFormatted = count.toString().padLeft(3, '0');
+      return '$monthStr/$seqFormatted';
+    }
   }
 
   @override

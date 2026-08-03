@@ -1,12 +1,37 @@
 rules_version = '2';
 
-// TEMPORARY dev/testing rule — same reasoning as firestore.rules. Any
-// signed-in user has full access; real per-role rules come with the User &
-// Permission module. Unauthenticated access stays blocked.
+/// Flexora ERP - Cloud Storage Security Rules
+/// Configured for flexora-pgpl-erp.firebasestorage.app
 service firebase.storage {
   match /b/{bucket}/o {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Default rule: Authenticated access required for files
     match /{allPaths=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isAuthenticated();
+    }
+
+    // Job Card Attachments & PDFs
+    match /job_card_attachments/{fileName} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Artwork Versions & PDF Proofs
+    match /artworks/{fileName} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Shade Card Reference Standards & Evidence
+    match /shades/{fileName} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Dispatch Challans & Invoices
+    match /dispatch_docs/{fileName} {
+      allow read, write: if isAuthenticated();
     }
   }
 }

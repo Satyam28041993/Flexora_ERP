@@ -11,8 +11,10 @@ import '../../../material_inventory/presentation/screens/job_reconciliation_scre
 import '../../../material_inventory/presentation/screens/roll_list_screen.dart';
 import '../../../order_intake/presentation/screens/order_list_screen.dart';
 import '../../../product_master/presentation/screens/product_list_screen.dart';
-import '../../../production_planning/presentation/screens/production_schedule_screen.dart';
+import '../../../production/presentation/screens/production_pipeline_screen.dart';
 import '../../../qc_management/presentation/screens/qc_dashboard_screen.dart';
+import '../../../reports/presentation/screens/executive_reports_screen.dart';
+import '../../../rm_ledger/presentation/screens/rm_ledger_screen.dart';
 import '../../../shade_card_master/presentation/screens/shade_card_list_screen.dart';
 import '../../../tooling_master/presentation/screens/die_list_screen.dart';
 import '../../../tooling_master/presentation/screens/plate_list_screen.dart';
@@ -29,13 +31,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final List<Widget> _pages = const [
     DashboardScreen(),
+    ExecutiveReportsScreen(),
     OrderListScreen(),
     CustomerListScreen(),
     ProductListScreen(),
     JobCardListScreen(),
     PlateListScreen(),
     DieListScreen(),
-    ProductionScheduleScreen(),
+    ProductionPipelineScreen(),
+    RmLedgerScreen(),
     ShadeCardListScreen(),
     RollListScreen(),
     JobReconciliationScreen(),
@@ -117,6 +121,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             label: Text('Dashboard'),
                           ),
                           NavigationRailDestination(
+                            icon: Icon(Icons.analytics_outlined),
+                            selectedIcon: Icon(Icons.analytics),
+                            label: Text('Reports BI'),
+                          ),
+                          NavigationRailDestination(
                             icon: Icon(Icons.receipt_long_outlined),
                             selectedIcon: Icon(Icons.receipt_long),
                             label: Text('Orders/PO'),
@@ -150,6 +159,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             icon: Icon(Icons.precision_manufacturing_outlined),
                             selectedIcon: Icon(Icons.precision_manufacturing),
                             label: Text('Production'),
+                          ),
+                          NavigationRailDestination(
+                            icon: Icon(Icons.swap_horizontal_circle_outlined),
+                            selectedIcon: Icon(Icons.swap_horizontal_circle),
+                            label: Text('RM Issue Ledger'),
                           ),
                           NavigationRailDestination(
                             icon: Icon(Icons.palette_outlined),

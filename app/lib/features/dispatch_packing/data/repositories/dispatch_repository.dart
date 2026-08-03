@@ -37,10 +37,12 @@ class FirestoreDispatchRepository implements DispatchRepository {
       query = query.where('jobCardId', isEqualTo: jobCardId);
     }
     return query
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => FinishedRollModel.fromMap(doc.id, doc.data())).toList());
+        .map((snapshot) {
+          final list = snapshot.docs.map((doc) => FinishedRollModel.fromMap(doc.id, doc.data())).toList();
+          list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return list;
+        });
   }
 
   @override
@@ -53,10 +55,12 @@ class FirestoreDispatchRepository implements DispatchRepository {
   Stream<List<PackingListModel>> watchPackingLists({required String plantId}) {
     return _packingLists
         .where('plantId', isEqualTo: plantId)
-        .orderBy('packingDate', descending: true)
         .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => PackingListModel.fromMap(doc.id, doc.data())).toList());
+        .map((snapshot) {
+          final list = snapshot.docs.map((doc) => PackingListModel.fromMap(doc.id, doc.data())).toList();
+          list.sort((a, b) => b.packingDate.compareTo(a.packingDate));
+          return list;
+        });
   }
 
   @override
@@ -69,11 +73,12 @@ class FirestoreDispatchRepository implements DispatchRepository {
   Stream<List<DispatchChallanModel>> watchDispatchChallans({required String plantId}) {
     return _challans
         .where('plantId', isEqualTo: plantId)
-        .orderBy('dispatchDate', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => DispatchChallanModel.fromMap(doc.id, doc.data()))
-            .toList());
+        .map((snapshot) {
+          final list = snapshot.docs.map((doc) => DispatchChallanModel.fromMap(doc.id, doc.data())).toList();
+          list.sort((a, b) => b.dispatchDate.compareTo(a.dispatchDate));
+          return list;
+        });
   }
 
   @override

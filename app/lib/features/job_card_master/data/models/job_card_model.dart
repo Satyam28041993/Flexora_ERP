@@ -3,38 +3,71 @@ import 'package:flutter/foundation.dart';
 /// Job Card Data Model.
 ///
 /// Implements Section 4 & Section 8 (item 4) of Doc/Flexora-Master-Requirements-v1.2.md:
-/// Pre-Press issues Job Card + Master Card for Production handover.
+/// PGPL Excel-exact Job Sheet model with auto-increment job sheet numbering.
 @immutable
 class JobCardModel {
   final String id;
   final String plantId;
 
-  final String jobCardNo; // e.g. JC-2026-001 or 06/021
+  // Header Details
+  final String jobCardNo; // e.g. 07/001 or 08/001 (Job Sheet No)
+  final String dateStr; // e.g. 01-07-2026
+  final String machineName; // e.g. LOMBARDI 430
   final String orderId;
   final String poNumber;
+  final String poDateStr;
 
+  // Customer & Product Info
   final String customerId;
   final String customerName;
-
   final String productId;
   final String internalSkuCode;
-  final String productName;
+  final String productName; // Job Name
+  final String jobCode; // e.g. 208280
+  final String cqalNo;
 
-  final double targetOrderQty; // Order line item quantity
+  // Size & Layout Specs
+  final String labelSize; // e.g. 280 X 143
+  final double labelPerMtr; // e.g. 3.53
+  final double stockLabelQty;
+  final String artWorkNo;
+  final String rollWindingDirection; // e.g. F1, F2, F3, F4, R1, R2, R3, R4
+  final String gearSize; // e.g. 89
+
+  // Printing & Tooling Specs
+  final String numbering; // Yes/No
+  final String punchOnline; // Yes/No
+  final String punchType; // ONLINE/OFFLINE
+  final String specialInfo; // Yes/No
+  final String plateOldNew; // OLD/NEW
+  final String reslamDelam; // Yes/No
+  final String noOfColors; // e.g. CMYK
+  final String materialAndCode; // e.g. AVERY
+  final String asPerShadeCard; // Yes/No
+  final String specialColors; // e.g. P 353 C / P 2727 C
+  final String productMaterialType; // e.g. C-MIRRORCOAT
+
+  // Finishing & Quantities
+  final String uvGlossLamination; // e.g. VARNISH
+  final String uvMat; // Yes/No
+  final String textureVarnish; // Yes/No
+  final double targetOrderQty; // Order Qty (e.g. 22900)
   final double plannedProductionQty; // Target + setup waste allowance
+  final String screenDetails; // Yes/No
+  final String stampingDetails; // Yes/No
+  final double paperSize; // e.g. 160 mm
+  final int ups; // e.g. 1
+  final double rmt; // e.g. 6483
+  final String remarks;
 
-  final DateTime? deliveryDueDate;
-  final DateTime? plannedProductionDate;
-
+  // Core References
   final String plateId;
   final String plateCode;
-
   final String dieId;
   final String dieCode;
 
-  /// Process Route for this specific Job Card (inherited from Product Master)
+  /// Process Route for this specific Job Card
   final List<String> processRoute;
-
   final String status; // Draft, PrePressReady, Scheduled, InProduction, Completed, Cancelled
 
   final DateTime createdAt;
@@ -57,6 +90,37 @@ class JobCardModel {
     required this.plannedProductionQty,
     required this.createdAt,
     required this.createdBy,
+    this.dateStr = '',
+    this.machineName = 'LOMBARDI 430',
+    this.poDateStr = '',
+    this.jobCode = '',
+    this.cqalNo = '',
+    this.labelSize = '',
+    this.labelPerMtr = 1.0,
+    this.stockLabelQty = 0.0,
+    this.artWorkNo = '',
+    this.rollWindingDirection = 'F4',
+    this.gearSize = '',
+    this.numbering = 'No',
+    this.punchOnline = 'No',
+    this.punchType = 'ONLINE',
+    this.specialInfo = 'No',
+    this.plateOldNew = 'NEW',
+    this.reslamDelam = 'No',
+    this.noOfColors = 'CMYK',
+    this.materialAndCode = 'AVERY',
+    this.asPerShadeCard = 'Yes',
+    this.specialColors = '',
+    this.productMaterialType = 'C-MIRRORCOAT',
+    this.uvGlossLamination = 'VARNISH',
+    this.uvMat = 'No',
+    this.textureVarnish = 'No',
+    this.screenDetails = 'No',
+    this.stampingDetails = 'No',
+    this.paperSize = 0.0,
+    this.ups = 1,
+    this.rmt = 0.0,
+    this.remarks = '',
     this.deliveryDueDate,
     this.plannedProductionDate,
     this.plateId = '',
@@ -69,20 +133,54 @@ class JobCardModel {
     this.updatedBy,
   });
 
+  final DateTime? deliveryDueDate;
+  final DateTime? plannedProductionDate;
+
   factory JobCardModel.fromMap(String id, Map<String, dynamic> map) {
     return JobCardModel(
       id: id,
       plantId: map['plantId'] as String? ?? 'plant-1',
       jobCardNo: map['jobCardNo'] as String? ?? '',
+      dateStr: map['dateStr'] as String? ?? '',
+      machineName: map['machineName'] as String? ?? 'LOMBARDI 430',
       orderId: map['orderId'] as String? ?? '',
       poNumber: map['poNumber'] as String? ?? '',
+      poDateStr: map['poDateStr'] as String? ?? '',
       customerId: map['customerId'] as String? ?? '',
       customerName: map['customerName'] as String? ?? '',
       productId: map['productId'] as String? ?? '',
       internalSkuCode: map['internalSkuCode'] as String? ?? '',
       productName: map['productName'] as String? ?? '',
+      jobCode: map['jobCode'] as String? ?? '',
+      cqalNo: map['cqalNo'] as String? ?? '',
+      labelSize: map['labelSize'] as String? ?? '',
+      labelPerMtr: (map['labelPerMtr'] as num?)?.toDouble() ?? 1.0,
+      stockLabelQty: (map['stockLabelQty'] as num?)?.toDouble() ?? 0.0,
+      artWorkNo: map['artWorkNo'] as String? ?? '',
+      rollWindingDirection: map['rollWindingDirection'] as String? ?? 'F4',
+      gearSize: map['gearSize'] as String? ?? '',
+      numbering: map['numbering'] as String? ?? 'No',
+      punchOnline: map['punchOnline'] as String? ?? 'No',
+      punchType: map['punchType'] as String? ?? 'ONLINE',
+      specialInfo: map['specialInfo'] as String? ?? 'No',
+      plateOldNew: map['plateOldNew'] as String? ?? 'NEW',
+      reslamDelam: map['reslamDelam'] as String? ?? 'No',
+      noOfColors: map['noOfColors'] as String? ?? 'CMYK',
+      materialAndCode: map['materialAndCode'] as String? ?? 'AVERY',
+      asPerShadeCard: map['asPerShadeCard'] as String? ?? 'Yes',
+      specialColors: map['specialColors'] as String? ?? '',
+      productMaterialType: map['productMaterialType'] as String? ?? 'C-MIRRORCOAT',
+      uvGlossLamination: map['uvGlossLamination'] as String? ?? 'VARNISH',
+      uvMat: map['uvMat'] as String? ?? 'No',
+      textureVarnish: map['textureVarnish'] as String? ?? 'No',
       targetOrderQty: (map['targetOrderQty'] as num?)?.toDouble() ?? 0.0,
       plannedProductionQty: (map['plannedProductionQty'] as num?)?.toDouble() ?? 0.0,
+      screenDetails: map['screenDetails'] as String? ?? 'No',
+      stampingDetails: map['stampingDetails'] as String? ?? 'No',
+      paperSize: (map['paperSize'] as num?)?.toDouble() ?? 0.0,
+      ups: (map['ups'] as num?)?.toInt() ?? 1,
+      rmt: (map['rmt'] as num?)?.toDouble() ?? 0.0,
+      remarks: map['remarks'] as String? ?? '',
       deliveryDueDate: map['deliveryDueDate'] != null
           ? DateTime.parse(map['deliveryDueDate'] as String)
           : null,
@@ -111,15 +209,46 @@ class JobCardModel {
     return {
       'plantId': plantId,
       'jobCardNo': jobCardNo,
+      'dateStr': dateStr,
+      'machineName': machineName,
       'orderId': orderId,
       'poNumber': poNumber,
+      'poDateStr': poDateStr,
       'customerId': customerId,
       'customerName': customerName,
       'productId': productId,
       'internalSkuCode': internalSkuCode,
       'productName': productName,
+      'jobCode': jobCode,
+      'cqalNo': cqalNo,
+      'labelSize': labelSize,
+      'labelPerMtr': labelPerMtr,
+      'stockLabelQty': stockLabelQty,
+      'artWorkNo': artWorkNo,
+      'rollWindingDirection': rollWindingDirection,
+      'gearSize': gearSize,
+      'numbering': numbering,
+      'punchOnline': punchOnline,
+      'punchType': punchType,
+      'specialInfo': specialInfo,
+      'plateOldNew': plateOldNew,
+      'reslamDelam': reslamDelam,
+      'noOfColors': noOfColors,
+      'materialAndCode': materialAndCode,
+      'asPerShadeCard': asPerShadeCard,
+      'specialColors': specialColors,
+      'productMaterialType': productMaterialType,
+      'uvGlossLamination': uvGlossLamination,
+      'uvMat': uvMat,
+      'textureVarnish': textureVarnish,
       'targetOrderQty': targetOrderQty,
       'plannedProductionQty': plannedProductionQty,
+      'screenDetails': screenDetails,
+      'stampingDetails': stampingDetails,
+      'paperSize': paperSize,
+      'ups': ups,
+      'rmt': rmt,
+      'remarks': remarks,
       'deliveryDueDate': deliveryDueDate?.toIso8601String(),
       'plannedProductionDate': plannedProductionDate?.toIso8601String(),
       'plateId': plateId,
@@ -153,3 +282,4 @@ class JobCardStatus {
     cancelled,
   ];
 }
+

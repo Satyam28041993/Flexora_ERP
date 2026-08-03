@@ -138,6 +138,26 @@ class CustomerModel {
   });
 
   factory CustomerModel.fromMap(String id, Map<String, dynamic> map) {
+    ContactPersonModel parseContact(dynamic val) {
+      if (val is Map<String, dynamic>) return ContactPersonModel.fromMap(val);
+      return ContactPersonModel(
+        name: map['contactPerson'] as String? ?? val?.toString() ?? '',
+        phone: map['contactPhone'] as String? ?? '',
+        email: map['contactEmail'] as String? ?? '',
+      );
+    }
+
+    AddressModel parseAddress(dynamic val) {
+      if (val is Map<String, dynamic>) return AddressModel.fromMap(val);
+      final addrStr = val?.toString() ?? '';
+      return AddressModel(
+        addressLine1: addrStr,
+        city: 'Mumbai',
+        state: 'Maharashtra',
+        pincode: '400001',
+      );
+    }
+
     return CustomerModel(
       id: id,
       plantId: map['plantId'] as String? ?? 'plant-1',
@@ -145,18 +165,15 @@ class CustomerModel {
       companyName: map['companyName'] as String? ?? '',
       gstNo: map['gstNo'] as String?,
       panNo: map['panNo'] as String?,
-      primaryContact: map['primaryContact'] != null
-          ? ContactPersonModel.fromMap(map['primaryContact'] as Map<String, dynamic>)
-          : const ContactPersonModel(name: '', phone: '', email: ''),
+      primaryContact: parseContact(map['primaryContact']),
       additionalContacts: (map['additionalContacts'] as List<dynamic>?)
-              ?.map((e) => ContactPersonModel.fromMap(e as Map<String, dynamic>))
+              ?.whereType<Map<String, dynamic>>()
+              .map((e) => ContactPersonModel.fromMap(e))
               .toList() ??
           const [],
-      billingAddress: map['billingAddress'] != null
-          ? AddressModel.fromMap(map['billingAddress'] as Map<String, dynamic>)
-          : const AddressModel(addressLine1: '', city: '', state: '', pincode: ''),
+      billingAddress: parseAddress(map['billingAddress']),
       shippingAddresses: (map['shippingAddresses'] as List<dynamic>?)
-              ?.map((e) => AddressModel.fromMap(e as Map<String, dynamic>))
+              ?.map((e) => parseAddress(e))
               .toList() ??
           const [],
       specialInstructions: map['specialInstructions'] as String?,

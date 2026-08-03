@@ -5,6 +5,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../data/models/die_model.dart';
 import '../../logic/tooling_providers.dart';
 import 'die_form_screen.dart';
+import 'die_revision_wizard_screen.dart';
 
 class DieListScreen extends ConsumerStatefulWidget {
   const DieListScreen({super.key});
@@ -18,16 +19,34 @@ class _DieListScreenState extends ConsumerState<DieListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final diesAsync = ref.watch(diesStreamProvider);
+    final diesAsync = ref.watch(diesStreamProvider(null));
 
     return Scaffold(
       appBar: AppBar(title: const Text('Punch / Die Management')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const DieFormScreen()),
-        ),
-        icon: const Icon(Icons.add),
-        label: const Text('New Die'),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'fab_die_revision',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const DieRevisionWizardScreen()),
+            ),
+            backgroundColor: Colors.amber.shade800,
+            foregroundColor: Colors.white,
+            icon: const Icon(Icons.sync_outlined),
+            label: const Text('Die Revision / Remake', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(width: 12),
+          FloatingActionButton.extended(
+            heroTag: 'fab_new_die',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const DieFormScreen()),
+            ),
+            icon: const Icon(Icons.add),
+            label: const Text('New Die Set'),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -35,7 +54,7 @@ class _DieListScreenState extends ConsumerState<DieListScreen> {
             padding: const EdgeInsets.all(16.0),
             child: TextField(
               decoration: InputDecoration(
-                hintText: 'Search by Die Code, Size, Shape, or Location...',
+                hintText: 'Search by Die Code, Product SKU, Customer, Size, or Type...',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),
@@ -48,7 +67,11 @@ class _DieListScreenState extends ConsumerState<DieListScreen> {
                 final filtered = dies.where((d) {
                   if (_searchQuery.isEmpty) return true;
                   return d.dieCode.toLowerCase().contains(_searchQuery) ||
+                      d.customerName.toLowerCase().contains(_searchQuery) ||
+                      d.internalSkuCode.toLowerCase().contains(_searchQuery) ||
+                      d.productName.toLowerCase().contains(_searchQuery) ||
                       d.shape.toLowerCase().contains(_searchQuery) ||
+                      d.dieType.toLowerCase().contains(_searchQuery) ||
                       d.storageRackBin.toLowerCase().contains(_searchQuery) ||
                       d.specLabel.toLowerCase().contains(_searchQuery);
                 }).toList();
@@ -105,17 +128,38 @@ class _DieCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Size & Layout: ${die.specLabel}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-              Text('Type: ${die.dieType} | Teeth: Z-${die.gearTeethCount} | Repeat: ${die.cylinderRepeatMm} mm',
-                  style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+              if (die.productName.isNotEmpty)
+                Text('${die.productName} (${die.internalSkuCode})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text('Size: ${die.specLabel} | Type: ${die.dieType}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+              if (die.customerName.isNotEmpty)
+                Text('Customer: ${die.customerName} | Teeth: Z-${die.gearTeethCount} | Repeat: ${die.cylinderRepeatMm} mm',
+                    style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
               const SizedBox(height: 4),
               Row(
                 children: [
+                  Text('Rev: ${die.revisionTag}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.primary)),
+                  const SizedBox(width: 12),
                   Text('Storage: ${die.storageRackBin}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   Text('Condition: ${die.condition}', style: const TextStyle(fontSize: 12)),
-                  const SizedBox(width: 16),
-                  Text('Hits: ${die.totalHitsRun}', style: const TextStyle(fontSize: 12)),
+                ],
+              ),
+              if (die.remadeNotes.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text('Notes: ${die.remadeNotes}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.amber.shade900)),
+              ],
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => DieRevisionWizardScreen(initialDie: die)),
+                    ),
+                    icon: const Icon(Icons.sync, size: 16, color: Colors.amber),
+                    label: const Text('Remake / Correct Die', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber)),
+                    style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.amber.shade700)),
+                  ),
                 ],
               ),
             ],

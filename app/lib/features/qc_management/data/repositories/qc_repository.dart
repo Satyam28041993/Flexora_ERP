@@ -24,11 +24,14 @@ class FirestoreQCRepository implements QCRepository {
       query = query.where('gateType', isEqualTo: gateType);
     }
     return query
-        .orderBy('inspectionDate', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => QCControlRecordModel.fromMap(doc.id, doc.data()))
-            .toList());
+        .map((snapshot) {
+          final list = snapshot.docs
+              .map((doc) => QCControlRecordModel.fromMap(doc.id, doc.data()))
+              .toList();
+          list.sort((a, b) => b.inspectionDate.compareTo(a.inspectionDate));
+          return list;
+        });
   }
 
   @override

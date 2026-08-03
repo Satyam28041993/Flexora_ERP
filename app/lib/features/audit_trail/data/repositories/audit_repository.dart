@@ -23,10 +23,12 @@ class FirestoreAuditRepository implements AuditRepository {
       query = query.where('module', isEqualTo: module);
     }
     return query
-        .orderBy('timestamp', descending: true)
         .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => AuditLogModel.fromMap(doc.id, doc.data())).toList());
+        .map((snapshot) {
+          final list = snapshot.docs.map((doc) => AuditLogModel.fromMap(doc.id, doc.data())).toList();
+          list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+          return list;
+        });
   }
 
   @override

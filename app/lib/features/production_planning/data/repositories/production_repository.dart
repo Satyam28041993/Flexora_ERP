@@ -45,11 +45,14 @@ class FirestoreProductionRepository implements ProductionRepository {
       query = query.where('machineId', isEqualTo: machineId);
     }
     return query
-        .orderBy('queuePriority')
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => ProductionScheduleModel.fromMap(doc.id, doc.data()))
-            .toList());
+        .map((snapshot) {
+          final list = snapshot.docs
+              .map((doc) => ProductionScheduleModel.fromMap(doc.id, doc.data()))
+              .toList();
+          list.sort((a, b) => a.queuePriority.compareTo(b.queuePriority));
+          return list;
+        });
   }
 
   @override
@@ -67,10 +70,12 @@ class FirestoreProductionRepository implements ProductionRepository {
   Stream<List<ProductionLogModel>> watchProductionLogs(String scheduleId) {
     return _logs
         .where('scheduleId', isEqualTo: scheduleId)
-        .orderBy('runStartTime', descending: true)
         .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => ProductionLogModel.fromMap(doc.id, doc.data())).toList());
+        .map((snapshot) {
+          final list = snapshot.docs.map((doc) => ProductionLogModel.fromMap(doc.id, doc.data())).toList();
+          list.sort((a, b) => b.runStartTime.compareTo(a.runStartTime));
+          return list;
+        });
   }
 
   @override

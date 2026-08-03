@@ -51,10 +51,12 @@ class FirestoreMaterialRepository implements MaterialRepository {
   Stream<List<RollModel>> watchRolls({required String plantId}) {
     return _rolls
         .where('plantId', isEqualTo: plantId)
-        .orderBy('rollCode')
         .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => RollModel.fromMap(doc.id, doc.data())).toList());
+        .map((snapshot) {
+          final list = snapshot.docs.map((doc) => RollModel.fromMap(doc.id, doc.data())).toList();
+          list.sort((a, b) => a.rollCode.compareTo(b.rollCode));
+          return list;
+        });
   }
 
   @override
@@ -219,21 +221,27 @@ class FirestoreMaterialRepository implements MaterialRepository {
       query = query.where('jobCardId', isEqualTo: jobCardId);
     }
     return query
-        .orderBy('timestamp', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => MaterialTransactionModel.fromMap(doc.id, doc.data()))
-            .toList());
+        .map((snapshot) {
+          final list = snapshot.docs
+              .map((doc) => MaterialTransactionModel.fromMap(doc.id, doc.data()))
+              .toList();
+          list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+          return list;
+        });
   }
 
   @override
   Stream<List<JobMaterialReconciliationModel>> watchJobReconciliations({required String plantId}) {
     return _reconciliations
         .where('plantId', isEqualTo: plantId)
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => JobMaterialReconciliationModel.fromMap(doc.id, doc.data()))
-            .toList());
+        .map((snapshot) {
+          final list = snapshot.docs
+              .map((doc) => JobMaterialReconciliationModel.fromMap(doc.id, doc.data()))
+              .toList();
+          list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return list;
+        });
   }
 }

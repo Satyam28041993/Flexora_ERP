@@ -7,6 +7,8 @@ import '../../../../core/theme/app_theme.dart';
 import '../../data/models/job_card_model.dart';
 import '../../data/models/master_card_model.dart';
 import '../../logic/job_card_providers.dart';
+import '../widgets/job_card_attachments_widget.dart';
+import '../widgets/job_sheet_print_view.dart';
 
 class JobCardDetailScreen extends ConsumerWidget {
   const JobCardDetailScreen({super.key, required this.jobCardId});
@@ -35,7 +37,14 @@ class JobCardDetailScreen extends ConsumerWidget {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text(jobCard.jobCardNo),
+            title: Text('Job Sheet: ${jobCard.jobCardNo}'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.print_outlined),
+                tooltip: 'View / Print PGPL Job Sheet',
+                onPressed: () => _openPrintPreview(context, jobCard),
+              ),
+            ],
           ),
           body: ListView(
             padding: const EdgeInsets.all(16),
@@ -66,10 +75,16 @@ class JobCardDetailScreen extends ConsumerWidget {
                         jobCard.productName,
                         style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
                       ),
-                      Text('SKU Code: ${jobCard.internalSkuCode}', style: const TextStyle(color: AppTheme.textSecondary)),
+                      Text('Job Code: ${jobCard.jobCode} | Customer: ${jobCard.customerName}', style: const TextStyle(color: AppTheme.textSecondary)),
                       const SizedBox(height: 4),
-                      Text('Customer: ${jobCard.customerName} | PO No: ${jobCard.poNumber}',
+                      Text('Machine: ${jobCard.machineName} | PO No: ${jobCard.poNumber}',
                           style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: () => _openPrintPreview(context, jobCard),
+                        icon: const Icon(Icons.table_chart),
+                        label: const Text('View PGPL Excel Format Job Sheet'),
+                      ),
                     ],
                   ),
                 ),
@@ -85,7 +100,10 @@ class JobCardDetailScreen extends ConsumerWidget {
                       const Text('Production Targets & Quantities', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.primary)),
                       const Divider(height: 20),
                       _buildRow('Target Order Qty', '${jobCard.targetOrderQty.toInt()} pcs'),
-                      _buildRow('Planned Prod Qty', '${jobCard.plannedProductionQty.toInt()} pcs (incl. setup/running waste)'),
+                      _buildRow('Paper Size', '${jobCard.paperSize.toInt()} mm'),
+                      _buildRow('UPS / LABLE PER MTR', '${jobCard.ups} UPS / ${jobCard.labelPerMtr} per mtr'),
+                      _buildRow('Calculated RMT', '${jobCard.rmt.toInt()} RMT'),
+                      _buildRow('Winding Direction', jobCard.rollWindingDirection),
                       if (jobCard.plateCode.isNotEmpty) _buildRow('Assigned Plate', jobCard.plateCode),
                       if (jobCard.dieCode.isNotEmpty) _buildRow('Assigned Punch/Die', jobCard.dieCode),
                     ],
@@ -177,10 +195,25 @@ class JobCardDetailScreen extends ConsumerWidget {
                 loading: () => const LinearProgressIndicator(),
                 error: (err, _) => Text('Error loading Master Card: $err'),
               ),
+              const SizedBox(height: 16),
+              const JobCardAttachmentsWidget(),
             ],
           ),
         );
       },
+    );
+  }
+
+  void _openPrintPreview(BuildContext context, JobCardModel jobCard) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => Scaffold(
+          appBar: AppBar(
+            title: Text('PGPL Job Sheet (${jobCard.jobCardNo})'),
+          ),
+          body: JobSheetPrintView(jobCard: jobCard),
+        ),
+      ),
     );
   }
 
@@ -262,3 +295,4 @@ class JobCardDetailScreen extends ConsumerWidget {
     );
   }
 }
+

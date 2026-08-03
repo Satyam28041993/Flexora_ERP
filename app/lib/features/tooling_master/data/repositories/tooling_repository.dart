@@ -12,7 +12,7 @@ abstract class ToolingRepository {
   Future<void> updatePlate(PlateModel plate);
 
   // Die operations
-  Stream<List<DieModel>> watchDies({required String plantId});
+  Stream<List<DieModel>> watchDies({required String plantId, String? productId});
   Future<DieModel?> getDie(String id);
   Future<String> createDie(DieModel die);
   Future<void> updateDie(DieModel die);
@@ -36,10 +36,12 @@ class FirestoreToolingRepository implements ToolingRepository {
       query = query.where('productId', isEqualTo: productId);
     }
     return query
-        .orderBy('plateCode')
         .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => PlateModel.fromMap(doc.id, doc.data())).toList());
+        .map((snapshot) {
+          final list = snapshot.docs.map((doc) => PlateModel.fromMap(doc.id, doc.data())).toList();
+          list.sort((a, b) => a.plateCode.compareTo(b.plateCode));
+          return list;
+        });
   }
 
   @override
@@ -61,13 +63,18 @@ class FirestoreToolingRepository implements ToolingRepository {
   }
 
   @override
-  Stream<List<DieModel>> watchDies({required String plantId}) {
-    return _dies
-        .where('plantId', isEqualTo: plantId)
-        .orderBy('dieCode')
+  Stream<List<DieModel>> watchDies({required String plantId, String? productId}) {
+    Query<Map<String, dynamic>> query = _dies.where('plantId', isEqualTo: plantId);
+    if (productId != null && productId.isNotEmpty) {
+      query = query.where('productId', isEqualTo: productId);
+    }
+    return query
         .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => DieModel.fromMap(doc.id, doc.data())).toList());
+        .map((snapshot) {
+          final list = snapshot.docs.map((doc) => DieModel.fromMap(doc.id, doc.data())).toList();
+          list.sort((a, b) => a.dieCode.compareTo(b.dieCode));
+          return list;
+        });
   }
 
   @override

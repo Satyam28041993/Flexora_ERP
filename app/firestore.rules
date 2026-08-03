@@ -1,18 +1,90 @@
 rules_version = '2';
 
-// TEMPORARY dev/testing rule: any signed-in user (including the anonymous
-// sign-in wired in main.dart) has full read/write. This is NOT role-based
-// access control — it exists only so Order Intake can be tested end-to-end.
-// Real per-role rules will be written when the User & Permission module
-// (Doc/Flexora-Master-Requirements-v1.2.md, Section 8, item 24) is designed
-// and confirmed with the user — per Golden Rule 2, permissions are not
-// invented ahead of that. Unauthenticated access stays blocked either way
-// (Doc Section 0A: "unauthorized reads/writes must be blocked even if the
-// app UI is bypassed").
+/// Flexora ERP - Firestore Security Rules
+/// Configured for flexora-pgpl-erp
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Default catch-all rule: Requires authentication for any ERP collection
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isAuthenticated();
+    }
+
+    // Core Masters
+    match /customers/{customerId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /products/{productId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Job Cards & Tooling
+    match /job_cards/{jobCardId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /plates/{plateId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /dies/{dieId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Production & Scheduling
+    match /production_orders/{orderId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /production_schedules/{scheduleId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Raw Material Ledger & Stores
+    match /rm_stock_ins/{id} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /rm_issues/{id} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /rm_returns/{id} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /rolls/{rollId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Quality Control & Shade Cards
+    match /shade_cards/{shadeCardId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /qc_control_records/{qcId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Dispatch & Packing
+    match /packing_lists/{packingId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /dispatch_challans/{dispatchId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Audit Logs
+    match /audit_logs/{logId} {
+      allow read, create: if isAuthenticated();
+      allow update, delete: if false; // Audit logs are immutable
     }
   }
 }

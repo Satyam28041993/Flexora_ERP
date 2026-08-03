@@ -25,6 +25,8 @@ class _PlateFormScreenState extends ConsumerState<PlateFormScreen> {
   late TextEditingController _codeController;
   late TextEditingController _colorCountController;
   late TextEditingController _colorDetailsController;
+  late TextEditingController _revisionTagController;
+  late TextEditingController _remadeColorsController;
   late TextEditingController _thicknessController;
   late TextEditingController _repeatController;
   late TextEditingController _rackBinController;
@@ -41,7 +43,9 @@ class _PlateFormScreenState extends ConsumerState<PlateFormScreen> {
 
     _codeController = TextEditingController(text: p?.plateCode ?? '');
     _colorCountController = TextEditingController(text: p?.colorCount.toString() ?? '4');
-    _colorDetailsController = TextEditingController(text: p?.colorDetails ?? '');
+    _colorDetailsController = TextEditingController(text: p?.colorDetails ?? 'Cyan, Magenta, Yellow, Black');
+    _revisionTagController = TextEditingController(text: p?.revisionTag ?? 'Rev 1');
+    _remadeColorsController = TextEditingController(text: p?.remadeColors ?? '');
     _thicknessController = TextEditingController(text: p?.polymerThicknessMm.toString() ?? '1.14');
     _repeatController = TextEditingController(text: p?.cylinderRepeatMm.toString() ?? '300');
     _rackBinController = TextEditingController(text: p?.storageRackBin ?? 'Rack P-1');
@@ -55,6 +59,8 @@ class _PlateFormScreenState extends ConsumerState<PlateFormScreen> {
     _codeController.dispose();
     _colorCountController.dispose();
     _colorDetailsController.dispose();
+    _revisionTagController.dispose();
+    _remadeColorsController.dispose();
     _thicknessController.dispose();
     _repeatController.dispose();
     _rackBinController.dispose();
@@ -88,6 +94,8 @@ class _PlateFormScreenState extends ConsumerState<PlateFormScreen> {
         artworkVersionLabel: 'v1',
         colorCount: int.parse(_colorCountController.text.trim()),
         colorDetails: _colorDetailsController.text.trim(),
+        revisionTag: _revisionTagController.text.trim(),
+        remadeColors: _remadeColorsController.text.trim(),
         polymerThicknessMm: double.parse(_thicknessController.text.trim()),
         cylinderRepeatMm: double.parse(_repeatController.text.trim()),
         storageRackBin: _rackBinController.text.trim(),
@@ -197,6 +205,80 @@ class _PlateFormScreenState extends ConsumerState<PlateFormScreen> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _colorDetailsController,
+              decoration: const InputDecoration(
+                labelText: 'Color Breakdown List',
+                hintText: 'e.g. Cyan, Magenta, Yellow, Black, Spot P353C',
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _revisionTagController,
+                    decoration: const InputDecoration(
+                      labelText: 'Revision Tag / Suffix',
+                      hintText: 'e.g. Rev 1, Rev 2',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: _remadeColorsController,
+                    decoration: const InputDecoration(
+                      labelText: 'Remade / Changed Colors',
+                      hintText: 'e.g. Black (Text Change)',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Partial Remake Quick Action
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                border: Border.all(color: Colors.amber.shade400),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.build_circle_outlined, color: Colors.amber, size: 28),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text('Plate Correction (Colors Changed)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        Text('Click button if color plates were remade due to text/design corrections.', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _condition = PlateCondition.partialRemake;
+                        _revisionTagController.text = 'Rev 2 (Colors Changed)';
+                        if (_remadeColorsController.text.isEmpty) {
+                          _remadeColorsController.text = 'Black Plate Remade';
+                        }
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Marked as Partial Remake (Rev 2). Specify changed colors above.')),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.amber.shade800, foregroundColor: Colors.white),
+                    child: const Text('Mark Colors Remade', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 12),
             Row(

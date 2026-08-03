@@ -20,11 +20,13 @@ class PlateModel {
 
   final int colorCount;
   final String colorDetails;
+  final String revisionTag; // e.g. Rev 1 (Original), Rev 2 (1-2 Colors Remade)
+  final String remadeColors; // e.g. Black (Text Change), Spot P353C
   final double polymerThicknessMm; // e.g. 1.14mm, 1.70mm
   final double cylinderRepeatMm;
 
   final String storageRackBin;
-  final String condition; // New, Good, Worn, Damaged, Scrapped
+  final String condition; // New, Good, Worn, Damaged, Scrapped, PartialRemake
   final int totalImpressionsRun;
 
   final String status; // Available, InUse, Maintenance, Retired
@@ -49,6 +51,8 @@ class PlateModel {
     required this.createdAt,
     required this.createdBy,
     this.colorDetails = '',
+    this.revisionTag = 'Rev 1',
+    this.remadeColors = '',
     this.polymerThicknessMm = 1.14,
     this.cylinderRepeatMm = 300.0,
     this.storageRackBin = 'Rack A-1',
@@ -73,6 +77,8 @@ class PlateModel {
       artworkVersionLabel: map['artworkVersionLabel'] as String? ?? 'v1',
       colorCount: map['colorCount'] as int? ?? 1,
       colorDetails: map['colorDetails'] as String? ?? '',
+      revisionTag: map['revisionTag'] as String? ?? 'Rev 1',
+      remadeColors: map['remadeColors'] as String? ?? '',
       polymerThicknessMm: (map['polymerThicknessMm'] as num?)?.toDouble() ?? 1.14,
       cylinderRepeatMm: (map['cylinderRepeatMm'] as num?)?.toDouble() ?? 300.0,
       storageRackBin: map['storageRackBin'] as String? ?? '',
@@ -101,6 +107,8 @@ class PlateModel {
       'artworkVersionLabel': artworkVersionLabel,
       'colorCount': colorCount,
       'colorDetails': colorDetails,
+      'revisionTag': revisionTag,
+      'remadeColors': remadeColors,
       'polymerThicknessMm': polymerThicknessMm,
       'cylinderRepeatMm': cylinderRepeatMm,
       'storageRackBin': storageRackBin,
@@ -118,11 +126,12 @@ class PlateModel {
 class PlateCondition {
   static const String brandNew = 'New';
   static const String good = 'Good';
+  static const String partialRemake = 'Partial Remake (Colors Changed)';
   static const String worn = 'Worn';
   static const String damaged = 'Damaged';
   static const String scrapped = 'Scrapped';
 
-  static const List<String> values = [brandNew, good, worn, damaged, scrapped];
+  static const List<String> values = [brandNew, good, partialRemake, worn, damaged, scrapped];
 }
 
 class PlateStatus {

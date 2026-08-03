@@ -36,10 +36,12 @@ class FirestoreProductRepository implements ProductRepository {
       query = query.where('customerId', isEqualTo: customerId);
     }
     return query
-        .orderBy('productName')
         .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => ProductModel.fromMap(doc.id, doc.data())).toList());
+        .map((snapshot) {
+          final list = snapshot.docs.map((doc) => ProductModel.fromMap(doc.id, doc.data())).toList();
+          list.sort((a, b) => a.productName.compareTo(b.productName));
+          return list;
+        });
   }
 
   @override
@@ -64,11 +66,14 @@ class FirestoreProductRepository implements ProductRepository {
   Stream<List<ArtworkVersionModel>> watchArtworks(String productId) {
     return _firestore
         .collection(FirestorePaths.productArtworks(productId))
-        .orderBy('versionNumber', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => ArtworkVersionModel.fromMap(doc.id, doc.data()))
-            .toList());
+        .map((snapshot) {
+          final list = snapshot.docs
+              .map((doc) => ArtworkVersionModel.fromMap(doc.id, doc.data()))
+              .toList();
+          list.sort((a, b) => b.versionNumber.compareTo(a.versionNumber));
+          return list;
+        });
   }
 
   @override

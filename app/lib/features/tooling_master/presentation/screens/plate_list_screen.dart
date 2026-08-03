@@ -5,6 +5,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../data/models/plate_model.dart';
 import '../../logic/tooling_providers.dart';
 import 'plate_form_screen.dart';
+import 'plate_revision_wizard_screen.dart';
 
 class PlateListScreen extends ConsumerStatefulWidget {
   const PlateListScreen({super.key, this.productId});
@@ -24,12 +25,30 @@ class _PlateListScreenState extends ConsumerState<PlateListScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Plate Management')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const PlateFormScreen()),
-        ),
-        icon: const Icon(Icons.add),
-        label: const Text('New Plate'),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'fab_revision',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const PlateRevisionWizardScreen()),
+            ),
+            backgroundColor: Colors.amber.shade800,
+            foregroundColor: Colors.white,
+            icon: const Icon(Icons.sync_outlined),
+            label: const Text('Plate Revision / Remake', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(width: 12),
+          FloatingActionButton.extended(
+            heroTag: 'fab_new_plate',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const PlateFormScreen()),
+            ),
+            icon: const Icon(Icons.add),
+            label: const Text('New Plate Set'),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -114,10 +133,28 @@ class _PlateCard extends StatelessWidget {
               Row(
                 children: [
                   Text('Colors: ${plate.colorCount}', style: const TextStyle(fontSize: 12)),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
+                  Text('Rev: ${plate.revisionTag}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.primary)),
+                  const SizedBox(width: 12),
                   Text('Storage: ${plate.storageRackBin}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
-                  const SizedBox(width: 16),
-                  Text('Condition: ${plate.condition}', style: const TextStyle(fontSize: 12)),
+                ],
+              ),
+              if (plate.remadeColors.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text('Changed: ${plate.remadeColors}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.amber.shade900)),
+              ],
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => PlateRevisionWizardScreen(initialPlate: plate)),
+                    ),
+                    icon: const Icon(Icons.sync, size: 16, color: Colors.amber),
+                    label: const Text('Remake / Correct Colors', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber)),
+                    style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.amber.shade700)),
+                  ),
                 ],
               ),
             ],

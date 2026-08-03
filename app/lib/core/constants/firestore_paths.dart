@@ -15,11 +15,15 @@ class FirestorePaths {
   static const String dies = 'dies';
 
   static const String machines = 'machines';
+  static const String productionOrders = 'production_orders';
   static const String productionSchedules = 'production_schedules';
   static const String productionLogs = 'production_logs';
   static const String shadeCards = 'shade_cards';
 
   static const String rolls = 'rolls';
+  static const String rmStockIns = 'rm_stock_ins';
+  static const String rmIssues = 'rm_issues';
+  static const String rmReturns = 'rm_returns';
   static const String materialTransactions = 'material_transactions';
   static const String jobMaterialReconciliations = 'job_material_reconciliations';
 

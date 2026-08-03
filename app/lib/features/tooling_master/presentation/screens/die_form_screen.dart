@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/firestore_paths.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../product_master/data/models/product_model.dart';
+import '../../../product_master/logic/product_providers.dart';
 import '../../data/models/die_model.dart';
 import '../../logic/tooling_providers.dart';
 
@@ -18,8 +20,12 @@ class DieFormScreen extends ConsumerStatefulWidget {
 class _DieFormScreenState extends ConsumerState<DieFormScreen> {
   final _formKey = GlobalKey<FormState>();
 
+  ProductModel? _selectedProduct;
+
   late TextEditingController _codeController;
-  String _dieType = 'Flexible Magnetic Die';
+  late TextEditingController _revisionTagController;
+  late TextEditingController _remadeNotesController;
+  String _dieType = DieTypeOptions.flexibleMagnetic;
   String _shape = 'Rectangle';
 
   late TextEditingController _widthController;
@@ -42,7 +48,9 @@ class _DieFormScreenState extends ConsumerState<DieFormScreen> {
     final d = widget.die;
 
     _codeController = TextEditingController(text: d?.dieCode ?? '');
-    _dieType = d?.dieType ?? 'Flexible Magnetic Die';
+    _revisionTagController = TextEditingController(text: d?.revisionTag ?? 'Rev 1');
+    _remadeNotesController = TextEditingController(text: d?.remadeNotes ?? '');
+    _dieType = d?.dieType ?? DieTypeOptions.flexibleMagnetic;
     _shape = d?.shape ?? 'Rectangle';
 
     _widthController = TextEditingController(text: d?.labelWidthMm.toString() ?? '50');
@@ -61,6 +69,8 @@ class _DieFormScreenState extends ConsumerState<DieFormScreen> {
   @override
   void dispose() {
     _codeController.dispose();
+    _revisionTagController.dispose();
+    _remadeNotesController.dispose();
     _widthController.dispose();
     _heightController.dispose();
     _cornerController.dispose();
@@ -74,6 +84,12 @@ class _DieFormScreenState extends ConsumerState<DieFormScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_selectedProduct == null && widget.die == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a Product SKU for this Punch/Die')),
+      );
+      return;
+    }
 
     setState(() => _isSaving = true);
 
@@ -86,6 +102,11 @@ class _DieFormScreenState extends ConsumerState<DieFormScreen> {
         dieCode: _codeController.text.trim().toUpperCase(),
         dieType: _dieType,
         shape: _shape,
+        customerId: _selectedProduct?.customerId ?? widget.die!.customerId,
+        customerName: _selectedProduct?.customerName ?? widget.die!.customerName,
+        productId: _selectedProduct?.id ?? widget.die!.productId,
+        internalSkuCode: _selectedProduct?.internalSkuCode ?? widget.die!.internalSkuCode,
+        productName: _selectedProduct?.productName ?? widget.die!.productName,
         labelWidthMm: double.parse(_widthController.text.trim()),
         labelHeightMm: double.parse(_heightController.text.trim()),
         cornerRadiusMm: double.parse(_cornerController.text.trim()),
@@ -93,6 +114,8 @@ class _DieFormScreenState extends ConsumerState<DieFormScreen> {
         gearTeethCount: int.parse(_teethController.text.trim()),
         acrossUps: int.parse(_acrossUpsController.text.trim()),
         aroundUps: int.parse(_aroundUpsController.text.trim()),
+        revisionTag: _revisionTagController.text.trim(),
+        remadeNotes: _remadeNotesController.text.trim(),
         storageRackBin: _rackBinController.text.trim(),
         condition: _condition,
         status: _status,
@@ -127,6 +150,8 @@ class _DieFormScreenState extends ConsumerState<DieFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final productsAsync = ref.watch(productsStreamProvider(null));
+
     return Scaffold(
       appBar: AppBar(title: Text(widget.die == null ? 'New Punch / Die Master' : 'Edit Punch / Die Master')),
       body: Form(
@@ -134,6 +159,26 @@ class _DieFormScreenState extends ConsumerState<DieFormScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            if (widget.die == null)
+              productsAsync.when(
+                data: (products) {
+                  return DropdownButtonFormField<ProductModel>(
+                    value: _selectedProduct,
+                    decoration: const InputDecoration(labelText: 'Link Product SKU *'),
+                    items: products
+                        .map((p) => DropdownMenuItem(
+                              value: p,
+                              child: Text('${p.productName} (${p.internalSkuCode})'),
+                            ))
+                        .toList(),
+                    onChanged: (val) => setState(() => _selectedProduct = val),
+                    validator: (v) => v == null ? 'Required' : null,
+                  );
+                },
+                loading: () => const LinearProgressIndicator(),
+                error: (err, _) => Text('Error loading products: $err'),
+              ),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
@@ -147,8 +192,8 @@ class _DieFormScreenState extends ConsumerState<DieFormScreen> {
                 Expanded(
                   child: DropdownButtonFormField<String>(
                     value: _dieType,
-                    decoration: const InputDecoration(labelText: 'Die Type'),
-                    items: ['Flexible Magnetic Die', 'Solid Cylinder Die']
+                    decoration: const InputDecoration(labelText: 'Die Type *'),
+                    items: DieTypeOptions.values
                         .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                         .toList(),
                     onChanged: (val) {

@@ -15,7 +15,7 @@ final platesStreamProvider = StreamProvider.family<List<PlateModel>, String?>((r
   return repo.watchPlates(plantId: DefaultPlant.id, productId: productId);
 });
 
-final diesStreamProvider = StreamProvider<List<DieModel>>((ref) {
+final diesStreamProvider = StreamProvider.family<List<DieModel>, String?>((ref, productId) {
   final repo = ref.watch(toolingRepositoryProvider);
-  return repo.watchDies(plantId: DefaultPlant.id);
+  return repo.watchDies(plantId: DefaultPlant.id, productId: productId);
 });
