@@ -136,7 +136,44 @@ class _ShadeCardItem extends StatelessWidget {
             ],
           ),
         ),
-        trailing: const Icon(Icons.chevron_right),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit, color: AppTheme.primary, size: 20),
+              tooltip: 'Edit Shade Card',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => ShadeCardFormScreen(shadeCard: shadeCard)),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+              tooltip: 'Delete Shade Card',
+              onPressed: () => showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Delete Shade Card Confirmation'),
+                  content: Text('Are you sure you want to delete Shade Card [${shadeCard.shadeCardCode}]?'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade800, foregroundColor: Colors.white),
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Deleted Shade Card [${shadeCard.shadeCardCode}]!'), backgroundColor: Colors.red.shade800),
+                        );
+                      },
+                      icon: const Icon(Icons.delete),
+                      label: const Text('Delete'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Icon(Icons.chevron_right),
+          ],
+        ),
       ),
     );
   }

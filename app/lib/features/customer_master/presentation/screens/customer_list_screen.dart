@@ -16,6 +16,8 @@ class CustomerListScreen extends ConsumerStatefulWidget {
 
 class _CustomerListScreenState extends ConsumerState<CustomerListScreen> {
   String _searchQuery = '';
+  String _selectedCityFilter = 'All Cities';
+  String _selectedStatusFilter = 'All Statuses';
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +25,7 @@ class _CustomerListScreenState extends ConsumerState<CustomerListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Customer Master'),
+        title: const Text('Customer Master Directory'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -41,26 +43,66 @@ class _CustomerListScreenState extends ConsumerState<CustomerListScreen> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search by Company Name, Code, or Contact...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () => setState(() => _searchQuery = ''),
-                      )
-                    : null,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              children: [
+                TextField(
+                  decoration: InputDecoration(
+                    hintText: 'Search by Company Name, Customer Code, or Contact Person...',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () => setState(() => _searchQuery = ''),
+                          )
+                        : null,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  ),
+                  onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        value: _selectedCityFilter,
+                        decoration: const InputDecoration(labelText: 'Filter by Location / City', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+                        items: const [
+                          DropdownMenuItem(value: 'All Cities', child: Text('All Locations')),
+                          DropdownMenuItem(value: 'Mumbai', child: Text('Mumbai')),
+                          DropdownMenuItem(value: 'Thane', child: Text('Thane')),
+                          DropdownMenuItem(value: 'Ankleshwar', child: Text('Ankleshwar')),
+                        ],
+                        onChanged: (val) => setState(() => _selectedCityFilter = val!),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        value: _selectedStatusFilter,
+                        decoration: const InputDecoration(labelText: 'Customer Status', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+                        items: const [
+                          DropdownMenuItem(value: 'All Statuses', child: Text('All Statuses')),
+                          DropdownMenuItem(value: 'active', child: Text('Active Only')),
+                          DropdownMenuItem(value: 'inactive', child: Text('Inactive Only')),
+                        ],
+                        onChanged: (val) => setState(() => _selectedStatusFilter = val!),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
           Expanded(
             child: customersAsync.when(
               data: (customers) {
                 final filtered = customers.where((c) {
+                  if (_selectedCityFilter != 'All Cities' && !c.billingAddress.city.toLowerCase().contains(_selectedCityFilter.toLowerCase())) return false;
+                  if (_selectedStatusFilter != 'All Statuses' && c.status.toLowerCase() != _selectedStatusFilter.toLowerCase()) return false;
                   if (_searchQuery.isEmpty) return true;
                   return c.companyName.toLowerCase().contains(_searchQuery) ||
                       c.customerCode.toLowerCase().contains(_searchQuery) ||

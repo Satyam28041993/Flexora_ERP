@@ -18,6 +18,9 @@ class ProductListScreen extends ConsumerStatefulWidget {
 
 class _ProductListScreenState extends ConsumerState<ProductListScreen> {
   String _searchQuery = '';
+  String _selectedClientFilter = 'All Clients';
+  String _selectedMaterialFilter = 'All Substrates';
+  String _selectedArtworkFilter = 'All Statuses';
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +28,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Product / SKU Master'),
+        title: const Text('Product / SKU Master Catalog'),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.of(context).push(
@@ -37,26 +40,83 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search by SKU Code, Product Name, or Customer...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () => setState(() => _searchQuery = ''),
-                      )
-                    : null,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              children: [
+                TextField(
+                  decoration: InputDecoration(
+                    hintText: 'Search by SKU Code, Product Name, Material, or Customer...',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () => setState(() => _searchQuery = ''),
+                          )
+                        : null,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  ),
+                  onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        value: _selectedClientFilter,
+                        decoration: const InputDecoration(labelText: 'Filter by Client', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+                        items: const [
+                          DropdownMenuItem(value: 'All Clients', child: Text('All Clients')),
+                          DropdownMenuItem(value: 'RALLIS', child: Text('RALLIS INDIA')),
+                          DropdownMenuItem(value: 'OCTAGREEN', child: Text('OCTAGREEN')),
+                          DropdownMenuItem(value: 'Surya', child: Text('Surya Aries')),
+                        ],
+                        onChanged: (val) => setState(() => _selectedClientFilter = val!),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        value: _selectedMaterialFilter,
+                        decoration: const InputDecoration(labelText: 'Filter Substrate', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+                        items: const [
+                          DropdownMenuItem(value: 'All Substrates', child: Text('All Substrates')),
+                          DropdownMenuItem(value: 'CHROMO', child: Text('CHROMO Paper')),
+                          DropdownMenuItem(value: 'PP WHITE', child: Text('PP WHITE')),
+                          DropdownMenuItem(value: 'SILVER', child: Text('SILVER Paper')),
+                          DropdownMenuItem(value: 'VOID', child: Text('VOID Film')),
+                        ],
+                        onChanged: (val) => setState(() => _selectedMaterialFilter = val!),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        value: _selectedArtworkFilter,
+                        decoration: const InputDecoration(labelText: 'Artwork Status', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+                        items: const [
+                          DropdownMenuItem(value: 'All Statuses', child: Text('All Statuses')),
+                          DropdownMenuItem(value: 'approved', child: Text('Approved')),
+                          DropdownMenuItem(value: 'pending', child: Text('Pending Approval')),
+                        ],
+                        onChanged: (val) => setState(() => _selectedArtworkFilter = val!),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
           Expanded(
             child: productsAsync.when(
               data: (products) {
                 final filtered = products.where((p) {
+                  if (_selectedClientFilter != 'All Clients' && !p.customerName.toLowerCase().contains(_selectedClientFilter.toLowerCase())) return false;
+                  if (_selectedMaterialFilter != 'All Substrates' && !p.labelSpec.substrateMaterial.toLowerCase().contains(_selectedMaterialFilter.toLowerCase())) return false;
+                  if (_selectedArtworkFilter != 'All Statuses' && p.artworkApprovalStatus.toLowerCase() != _selectedArtworkFilter.toLowerCase()) return false;
                   if (_searchQuery.isEmpty) return true;
                   return p.productName.toLowerCase().contains(_searchQuery) ||
                       p.internalSkuCode.toLowerCase().contains(_searchQuery) ||

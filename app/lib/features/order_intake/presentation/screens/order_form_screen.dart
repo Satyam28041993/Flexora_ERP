@@ -1,17 +1,13 @@
-import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/constants/firestore_paths.dart';
-import '../../../../core/services/gemini_po_service.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../../core/utils/po_document_parser.dart';
 import '../../../customer_master/data/models/customer_model.dart';
 import '../../../customer_master/logic/customer_providers.dart';
 import '../../../product_master/data/models/product_model.dart';
-import '../../../product_master/presentation/screens/product_form_screen.dart';
+import '../../../product_master/logic/product_providers.dart';
 import '../../data/models/order_model.dart';
 import '../../logic/order_providers.dart';
 
@@ -39,13 +35,6 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
   int _paymentTermsDays = 30;
   double _gstRatePercent = 18.0;
 
-  // Attachment Info
-  String? _attachmentFileName;
-  String? _attachmentFilePath;
-  String? _attachmentFileType;
-  Uint8List? _attachedFileBytes;
-  bool _isExtracting = false;
-
   // Multi-Line Items State
   final List<_LineItemRowState> _lineItemRows = [];
 
@@ -66,15 +55,11 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
       _poDate = o.poDate;
       _paymentTermsDays = o.paymentTermsDays;
       _gstRatePercent = o.gstRatePercent;
-      _attachmentFileName = o.attachmentFileName;
-      _attachmentFilePath = o.attachmentFilePath;
-      _attachmentFileType = o.attachmentFileType;
 
       for (var item in o.lineItems) {
         _lineItemRows.add(_LineItemRowState.fromModel(item));
       }
     } else {
-      // Add default 1 empty line item row for clean new entry
       _lineItemRows.add(_LineItemRowState.empty());
     }
   }
@@ -92,225 +77,148 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
     super.dispose();
   }
 
-  // Open Gemini API Key Configuration Dialog
-  void _configureGeminiKey() {
-    final keyController = TextEditingController(text: GeminiPOService.userApiKey ?? '');
+  /// 1-Click Quick Add SKU Dialog to Sync Line Item directly to SKU Master Database
+  Future<void> _openQuickAddSkuDialog(int rowIndex) async {
+    final row = _lineItemRows[rowIndex];
 
-    showDialog(
+    final codeCtrl = TextEditingController(
+      text: row.ourSkuCodeController.text.isNotEmpty
+          ? row.ourSkuCodeController.text
+          : 'SKU-${_selectedCustomer?.companyName.substring(0, 3).toUpperCase() ?? 'GEN'}-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+    );
+    final clientCodeCtrl = TextEditingController(text: row.clientSkuCodeController.text);
+    final nameCtrl = TextEditingController(text: row.itemNameController.text);
+    final widthCtrl = TextEditingController(text: row.widthController.text.isEmpty ? '100' : row.widthController.text);
+    final heightCtrl = TextEditingController(text: row.heightController.text.isEmpty ? '150' : row.heightController.text);
+
+    await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Row(
           children: const [
-            Icon(Icons.auto_awesome, color: AppTheme.primary),
+            Icon(Icons.add_box, color: AppTheme.primary),
             SizedBox(width: 8),
-            Text('Configure Gemini AI API Key'),
+            Text('Quick Add & Register SKU in Master'),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Paste your Google Gemini API key to enable 100% dynamic AI extraction of ANY Purchase Order PDF layout:',
-              style: TextStyle(fontSize: 13),
+        content: SingleChildScrollView(
+          child: SizedBox(
+            width: 480,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Register a new SKU into SKU Master Catalog with basic info. Detailed technical specs (Gear Z, UPS, Substrates) can be edited later in SKU Master screen.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: codeCtrl,
+                  decoration: const InputDecoration(labelText: 'Our Internal SKU Code *'),
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: clientCodeCtrl,
+                  decoration: const InputDecoration(labelText: 'Client Product Code (Optional)'),
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Product / Label Name *'),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: widthCtrl,
+                        decoration: const InputDecoration(labelText: 'Width (mm)'),
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextFormField(
+                        controller: heightCtrl,
+                        decoration: const InputDecoration(labelText: 'Height (mm)'),
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: keyController,
-              decoration: const InputDecoration(
-                labelText: 'Gemini API Key',
-                hintText: 'AIzaSy...',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.key),
-              ),
-            ),
-          ],
+          ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final key = keyController.text.trim();
-              setState(() {
-                GeminiPOService.userApiKey = key.isEmpty ? null : key;
-              });
-              Navigator.of(ctx).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(key.isNotEmpty
-                      ? 'Gemini AI API Key saved! Dynamic AI PO extraction activated.'
-                      : 'Gemini API Key cleared.'),
-                  backgroundColor: AppTheme.accentEmerald,
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
+            onPressed: () async {
+              final skuCode = codeCtrl.text.trim();
+              final prodName = nameCtrl.text.trim();
+              if (skuCode.isEmpty || prodName.isEmpty) return;
+
+              final w = double.tryParse(widthCtrl.text.trim()) ?? 100.0;
+              final h = double.tryParse(heightCtrl.text.trim()) ?? 150.0;
+
+              final productModel = ProductModel(
+                id: '',
+                plantId: DefaultPlant.id,
+                internalSkuCode: skuCode,
+                customerId: _selectedCustomer?.id ?? 'gen-cust',
+                customerName: _selectedCustomer?.companyName ?? 'General Customer',
+                customerProductCode: clientCodeCtrl.text.trim(),
+                productName: prodName,
+                description: 'Quick synced from PO Order Intake',
+                labelSpec: LabelSpecModel(
+                  widthMm: w,
+                  heightMm: h,
+                  substrateMaterial: 'Self-Adhesive Chromo Paper 80 GSM',
                 ),
+                printSpec: const PrintSpecModel(colorCount: 4),
+                machineSpec: MachineSpecModel(
+                  webWidthMm: w + 10.0,
+                  repeatCylinderMm: 254.0,
+                  acrossUps: 2,
+                  aroundUps: 1,
+                ),
+                processRoute: StandardProcessSteps.defaultRoute,
+                artworkApprovalStatus: 'approved',
+                createdAt: DateTime.now(),
+                createdBy: 'po_intake_sync',
               );
+
+              final repo = ref.read(productRepositoryProvider);
+              await repo.createProduct(productModel);
+
+              setState(() {
+                row.selectedProduct = productModel;
+                row.ourSkuCodeController.text = skuCode;
+                row.clientSkuCodeController.text = clientCodeCtrl.text.trim();
+                row.itemNameController.text = prodName;
+                row.widthController.text = w.toString();
+                row.heightController.text = h.toString();
+              });
+
+              if (mounted) {
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Registered SKU [$skuCode] to SKU Master Catalog successfully!'),
+                    backgroundColor: AppTheme.accentEmerald,
+                  ),
+                );
+              }
             },
-            child: const Text('Save API Key'),
+            icon: const Icon(Icons.sync),
+            label: const Text('Save & Select SKU'),
           ),
         ],
       ),
     );
   }
 
-  // Pick / Upload PO File (Direct Native/Web File Explorer Picker)
-  Future<void> _pickPOFile() async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg'],
-        withData: true,
-      );
-
-      if (result != null && result.files.isNotEmpty) {
-        final file = result.files.first;
-        final ext = file.extension?.toLowerCase() ?? 'pdf';
-        final safePath = kIsWeb ? file.name : (file.path ?? file.name);
-
-        setState(() {
-          _attachmentFileName = file.name;
-          _attachmentFilePath = safePath;
-          _attachmentFileType = (ext == 'pdf') ? 'pdf' : 'image';
-          _attachedFileBytes = file.bytes;
-        });
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Attached file: ${file.name} (${(file.size / 1024).toStringAsFixed(1)} KB)'),
-              backgroundColor: AppTheme.primary,
-            ),
-          );
-        }
-
-        // Auto-extract data immediately on file attachment!
-        await _extractPOData();
-      }
-    } catch (e) {
-      debugPrint('FilePicker error: $e');
-    }
-  }
-
-  // Auto-Extract Data from PO Document using Gemini AI Vision or Local Rules Engine
-  Future<void> _extractPOData() async {
-    if (_attachmentFileName == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please attach a PO PDF or Image file first')),
-      );
-      return;
-    }
-
-    setState(() => _isExtracting = true);
-
-    try {
-      ParsedPOData? parsedData;
-
-      // 1. Try Gemini AI Vision API if Key is set and bytes available
-      if (GeminiPOService.hasKey && _attachedFileBytes != null) {
-        parsedData = await GeminiPOService.extractPOWithGemini(
-          fileBytes: _attachedFileBytes!,
-          fileName: _attachmentFileName!,
-          mimeType: _attachmentFileType == 'pdf' ? 'application/pdf' : 'image/png',
-        );
-      }
-
-      // 2. Fallback to PODocumentParser
-      parsedData ??= await PODocumentParser.parseFile(
-        fileName: _attachmentFileName!,
-        filePath: _attachmentFilePath!,
-      );
-
-      setState(() {
-        _poNumberController.text = parsedData!.poNumber;
-        _poDate = parsedData.poDate;
-        _shippingAddressController.text = parsedData.shippingAddress;
-        if (parsedData.specialNotes != null) {
-          _specialNotesController.text = parsedData.specialNotes!;
-        }
-        _oneTimePunchCostController.text = parsedData.oneTimePunchCost.toString();
-        _freightChargesController.text = parsedData.freightCharges.toString();
-
-        // Clear existing rows and load extracted line items
-        for (var r in _lineItemRows) {
-          r.dispose();
-        }
-        _lineItemRows.clear();
-
-        for (var item in parsedData.lineItems) {
-          _lineItemRows.add(_LineItemRowState.fromModel(item));
-        }
-
-        // Try auto-selecting customer if matched
-        final customers = ref.read(customersStreamProvider).value;
-        if (customers != null && parsedData.customerName.isNotEmpty) {
-          try {
-            _selectedCustomer = customers.firstWhere(
-              (c) =>
-                  c.companyName.toLowerCase().contains(parsedData!.customerName.toLowerCase()) ||
-                  parsedData.customerName.toLowerCase().contains(c.companyName.toLowerCase()),
-            );
-          } catch (_) {}
-        }
-      });
-
-      if (mounted) {
-        final isAi = GeminiPOService.hasKey && _attachedFileBytes != null;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(isAi
-                ? '✨ Gemini AI Extraction Complete! ${parsedData.lineItems.length} label item(s) extracted.'
-                : 'PO Data Extracted! ${parsedData.lineItems.length} label item(s) loaded.'),
-            backgroundColor: AppTheme.accentEmerald,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Extraction error: $e'), backgroundColor: AppTheme.danger),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isExtracting = false);
-    }
-  }
-
-  Future<void> _openSkuMasterPopup(int rowIndex) async {
-    final result = await showDialog<ProductModel>(
-      context: context,
-      builder: (context) {
-        final row = _lineItemRows[rowIndex];
-        return Dialog(
-          insetPadding: const EdgeInsets.all(20),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: SizedBox(
-              width: 1000,
-              height: 800,
-              child: ProductFormScreen(
-                preselectedCustomerId: _selectedCustomer?.id,
-                preselectedName: row.itemNameController.text,
-                preselectedWidth: row.widthController.text,
-                preselectedHeight: row.heightController.text,
-              ),
-            ),
-          ),
-        );
-      },
-    );
-
-    if (result != null && mounted) {
-      setState(() {
-        final row = _lineItemRows[rowIndex];
-        row.itemNameController.text = result.productName;
-        row.widthController.text = result.labelSpec.widthMm.toString();
-        row.heightController.text = result.labelSpec.heightMm.toString();
-      });
-    }
-  }
-
-  // Calculate Financial Totals Live
   double get _taxableSubtotal {
     double total = 0.0;
     for (var r in _lineItemRows) {
@@ -351,50 +259,44 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
     try {
       final repo = ref.read(orderRepositoryProvider);
 
-      final lineItemsModels = _lineItemRows.asMap().entries.map((entry) {
-        final idx = entry.key + 1;
-        final r = entry.value;
+      final lineItemModels = _lineItemRows.asMap().entries.map((e) {
+        final idx = e.key;
+        final row = e.value;
         return OrderLineItemModel(
-          id: r.id,
-          itemNo: idx,
-          itemName: r.itemNameController.text.trim(),
-          labelDescription: r.descController.text.trim(),
-          sizeWidthMm: double.tryParse(r.widthController.text.trim()) ?? 0.0,
-          sizeHeightMm: double.tryParse(r.heightController.text.trim()) ?? 0.0,
-          hsnCode: r.hsnController.text.trim(),
-          quantityPcs: double.tryParse(r.qtyController.text.trim()) ?? 0.0,
-          unitRateRs: double.tryParse(r.rateController.text.trim()) ?? 0.0,
-          lineAmountRs: r.lineAmount,
+          id: row.id,
+          itemNo: idx + 1,
+          itemName: row.itemNameController.text.trim(),
+          labelDescription: row.descController.text.trim(),
+          sizeWidthMm: double.tryParse(row.widthController.text.trim()) ?? 0.0,
+          sizeHeightMm: double.tryParse(row.heightController.text.trim()) ?? 0.0,
+          hsnCode: row.hsnController.text.trim().isEmpty ? '48211020' : row.hsnController.text.trim(),
+          ourSkuCode: row.ourSkuCodeController.text.trim(),
+          customerSkuCode: row.clientSkuCodeController.text.trim(),
+          quantityPcs: double.tryParse(row.qtyController.text.trim()) ?? 0.0,
+          unitRateRs: double.tryParse(row.rateController.text.trim()) ?? 0.0,
+          lineAmountRs: row.lineAmount,
         );
       }).toList();
 
       final orderData = OrderModel(
         id: widget.order?.id ?? '',
         plantId: DefaultPlant.id,
-        poNumber: _poNumberController.text.trim().toUpperCase(),
+        poNumber: _poNumberController.text.trim(),
         poDate: _poDate,
-        customerId: _selectedCustomer?.id ?? widget.order?.customerId ?? 'cust-default',
-        customerName: _selectedCustomer?.companyName ?? widget.order?.customerName ?? 'Direct Customer',
+        customerId: _selectedCustomer?.id ?? widget.order?.customerId ?? '',
+        customerName: _selectedCustomer?.companyName ?? widget.order?.customerName ?? '',
         customerGstNo: _selectedCustomer?.gstNo ?? widget.order?.customerGstNo ?? '',
         shippingAddress: _shippingAddressController.text.trim(),
-        paymentTermsDays: _paymentTermsDays,
-        specialNotes: _specialNotesController.text.trim().isEmpty ? null : _specialNotesController.text.trim(),
-        attachmentFileName: _attachmentFileName,
-        attachmentFilePath: _attachmentFilePath,
-        attachmentFileType: _attachmentFileType,
-        lineItems: lineItemsModels,
+        lineItems: lineItemModels,
         taxableSubtotal: _taxableSubtotal,
-        gstRatePercent: _gstRatePercent,
-        cgstAmount: _gstAmount / 2.0,
-        sgstAmount: _gstAmount / 2.0,
-        freightCharges: _freightCost,
-        oneTimePunchCost: _punchCost,
         grandTotalAmount: _grandTotal,
-        status: widget.order?.status ?? 'Pending',
+        paymentTermsDays: _paymentTermsDays,
+        oneTimePunchCost: _punchCost,
+        freightCharges: _freightCost,
+        gstRatePercent: _gstRatePercent,
+        specialNotes: _specialNotesController.text.trim(),
         createdAt: widget.order?.createdAt ?? DateTime.now(),
-        createdBy: widget.order?.createdBy ?? 'sales',
-        updatedAt: widget.order != null ? DateTime.now() : null,
-        updatedBy: widget.order != null ? 'sales' : null,
+        createdBy: widget.order?.createdBy ?? 'system',
       );
 
       if (widget.order == null) {
@@ -423,6 +325,8 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
   @override
   Widget build(BuildContext context) {
     final customersAsync = ref.watch(customersStreamProvider);
+    final productsAsync = ref.watch(productsStreamProvider(_selectedCustomer?.id));
+    final products = productsAsync.value ?? [];
     final dateFormat = DateFormat('dd-MM-yyyy');
 
     return Scaffold(
@@ -434,83 +338,104 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            // Section 1: PO Document Attachment & Gemini AI Auto-Extractor
+            // Section 1: PO Header & Customer Selection
             Card(
-              color: const Color(0xFFF1F5F9),
-              elevation: 0,
+              elevation: 2,
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const Text('PO Header & Customer Info',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.primary)),
+                    const Divider(height: 20),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          children: const [
-                            Icon(Icons.attach_file, color: AppTheme.primary),
-                            SizedBox(width: 8),
-                            Text('PO Document Attachment & AI Auto-Extractor',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.primary)),
-                          ],
+                        Expanded(
+                          flex: 2,
+                          child: customersAsync.when(
+                            data: (customers) {
+                              if (_selectedCustomer == null && widget.order != null) {
+                                try {
+                                  _selectedCustomer = customers.firstWhere((c) => c.id == widget.order!.customerId);
+                                } catch (_) {}
+                              }
+                              return DropdownButtonFormField<CustomerModel>(
+                                isExpanded: true,
+                                value: _selectedCustomer,
+                                decoration: const InputDecoration(labelText: 'Customer / Billing Party *', prefixIcon: Icon(Icons.business)),
+                                items: customers
+                                    .map((c) => DropdownMenuItem(value: c, child: Text(c.companyName, overflow: TextOverflow.ellipsis)))
+                                    .toList(),
+                                onChanged: (val) {
+                                  setState(() {
+                                    _selectedCustomer = val;
+                                    if (val != null && val.shippingAddresses.isNotEmpty) {
+                                      _shippingAddressController.text =
+                                          '${val.shippingAddresses.first.addressLine1}, ${val.shippingAddresses.first.city}';
+                                    }
+                                  });
+                                },
+                                validator: (v) => v == null ? 'Customer is required' : null,
+                              );
+                            },
+                            loading: () => const LinearProgressIndicator(),
+                            error: (e, _) => Text('Error loading customers: $e'),
+                          ),
                         ),
-                        Row(
-                          children: [
-                            OutlinedButton.icon(
-                              onPressed: _configureGeminiKey,
-                              icon: Icon(
-                                GeminiPOService.hasKey ? Icons.check_circle : Icons.key,
-                                size: 16,
-                                color: GeminiPOService.hasKey ? AppTheme.accentEmerald : AppTheme.primary,
-                              ),
-                              label: Text(
-                                GeminiPOService.hasKey ? 'Gemini AI Active ✨' : 'Add Gemini API Key 🔑',
-                                style: TextStyle(
-                                  color: GeminiPOService.hasKey ? AppTheme.accentEmerald : AppTheme.primary,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            if (_attachmentFileName != null)
-                              ElevatedButton.icon(
-                                onPressed: _isExtracting ? null : _extractPOData,
-                                icon: _isExtracting
-                                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                                    : const Icon(Icons.auto_fix_high, size: 18),
-                                label: Text(_isExtracting ? 'Extracting Data...' : 'Auto-Extract PO Data'),
-                                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.accentEmerald),
-                              ),
-                          ],
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _poNumberController,
+                            decoration: const InputDecoration(labelText: 'PO Number *', prefixIcon: Icon(Icons.receipt)),
+                            validator: (v) => v == null || v.trim().isEmpty ? 'PO Number is required' : null,
+                          ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        ElevatedButton.icon(
-                          onPressed: _pickPOFile,
-                          icon: const Icon(Icons.folder_open),
-                          label: Text(_attachmentFileName == null ? 'Attach PO PDF / Image File' : 'Change Attached File'),
-                        ),
-                        const SizedBox(width: 16),
-                        if (_attachmentFileName != null)
-                          Expanded(
-                            child: Row(
-                              children: [
-                                const Icon(Icons.picture_as_pdf, color: Colors.red, size: 20),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    _attachmentFileName!,
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
+                        Expanded(
+                          child: InkWell(
+                            onTap: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: _poDate,
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime(2030),
+                              );
+                              if (picked != null) setState(() => _poDate = picked);
+                            },
+                            child: InputDecorator(
+                              decoration: const InputDecoration(labelText: 'PO Date *', suffixIcon: Icon(Icons.calendar_today)),
+                              child: Text(dateFormat.format(_poDate)),
                             ),
                           ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: DropdownButtonFormField<int>(
+                            value: _paymentTermsDays,
+                            decoration: const InputDecoration(labelText: 'Payment Terms'),
+                            items: const [
+                              DropdownMenuItem(value: 0, child: Text('Advance Payment')),
+                              DropdownMenuItem(value: 7, child: Text('7 Days Credit')),
+                              DropdownMenuItem(value: 15, child: Text('15 Days Credit')),
+                              DropdownMenuItem(value: 30, child: Text('30 Days Credit')),
+                              DropdownMenuItem(value: 45, child: Text('45 Days Credit')),
+                              DropdownMenuItem(value: 60, child: Text('60 Days Credit')),
+                            ],
+                            onChanged: (val) => setState(() => _paymentTermsDays = val!),
+                          ),
+                        ),
                       ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _shippingAddressController,
+                      decoration: const InputDecoration(labelText: 'Shipping / Consignee Address *', prefixIcon: Icon(Icons.location_on)),
+                      validator: (v) => v == null || v.trim().isEmpty ? 'Shipping address required' : null,
                     ),
                   ],
                 ),
@@ -518,84 +443,7 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
             ),
             const SizedBox(height: 20),
 
-            // Section 2: Header Metadata
-            const Text('PO Header & Customer Info',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.primary)),
-            const Divider(),
-            Row(
-              children: [
-                Expanded(
-                  child: customersAsync.when(
-                    data: (customers) => DropdownButtonFormField<CustomerModel>(
-                      value: _selectedCustomer,
-                      decoration: const InputDecoration(labelText: 'Customer / Billing Party *'),
-                      items: customers
-                          .map((c) => DropdownMenuItem(value: c, child: Text('${c.companyName} (${c.customerCode})')))
-                          .toList(),
-                      onChanged: (val) => setState(() => _selectedCustomer = val),
-                      validator: (v) => v == null && widget.order == null ? 'Required' : null,
-                    ),
-                    loading: () => const LinearProgressIndicator(),
-                    error: (err, _) => Text('Error: $err'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: _poNumberController,
-                    decoration: const InputDecoration(labelText: 'PO Number *', hintText: 'e.g. PK/MUM/155/2026-2027'),
-                    validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _poDate,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(2030),
-                      );
-                      if (picked != null) setState(() => _poDate = picked);
-                    },
-                    child: InputDecorator(
-                      decoration: const InputDecoration(labelText: 'PO Date *'),
-                      child: Text(dateFormat.format(_poDate), style: const TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField<int>(
-                    value: _paymentTermsDays,
-                    decoration: const InputDecoration(labelText: 'Payment Terms'),
-                    items: const [
-                      DropdownMenuItem(value: 30, child: Text('30 Days Credit')),
-                      DropdownMenuItem(value: 45, child: Text('45 Days Credit')),
-                      DropdownMenuItem(value: 60, child: Text('60 Days Credit')),
-                      DropdownMenuItem(value: 0, child: Text('Advance Payment')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) setState(() => _paymentTermsDays = val);
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _shippingAddressController,
-              decoration: const InputDecoration(labelText: 'Shipping / Consignee Address *'),
-              validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
-            ),
-            const SizedBox(height: 20),
-
-            // Section 3: Multiple Label SKUs / Line Items Table
+            // Section 2: PO Line Items Breakdown (Searchable SKU Dropdown + Manual Rates)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -603,23 +451,26 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.primary)),
                 OutlinedButton.icon(
                   onPressed: _addLineItemRow,
-                  icon: const Icon(Icons.add, size: 18),
+                  icon: const Icon(Icons.add),
                   label: const Text('Add Label Item'),
                 ),
               ],
             ),
             const Divider(),
+
             ..._lineItemRows.asMap().entries.map((entry) {
               final idx = entry.key;
               final row = entry.value;
 
               return Card(
                 elevation: 1,
-                margin: const EdgeInsets.only(bottom: 12),
+                margin: const EdgeInsets.only(bottom: 14),
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(14),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Row 1: Searchable SKU Dropdown + Quick Add SKU Button
                       Row(
                         children: [
                           CircleAvatar(
@@ -630,16 +481,45 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
                           ),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: TextFormField(
-                              controller: row.itemNameController,
-                              decoration: const InputDecoration(labelText: 'Label Name / Item Description *', hintText: 'e.g. Nomocheck Triple Action 500ml'),
-                              validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                            child: DropdownButtonFormField<ProductModel>(
+                              isExpanded: true,
+                              value: row.selectedProduct,
+                              decoration: const InputDecoration(
+                                labelText: 'Select Product SKU (Search by SKU Code or Label Name) *',
+                                prefixIcon: Icon(Icons.search),
+                              ),
+                              items: products.map((p) {
+                                final clientCodeStr = p.customerProductCode.isNotEmpty ? ' [${p.customerProductCode}]' : '';
+                                return DropdownMenuItem<ProductModel>(
+                                  value: p,
+                                  child: Text(
+                                    '${p.internalSkuCode} - ${p.productName}$clientCodeStr',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setState(() {
+                                    row.selectedProduct = val;
+                                    row.itemNameController.text = val.productName;
+                                    row.ourSkuCodeController.text = val.internalSkuCode;
+                                    row.clientSkuCodeController.text = val.customerProductCode;
+                                    row.widthController.text = val.labelSpec.widthMm.toString();
+                                    row.heightController.text = val.labelSpec.heightMm.toString();
+                                  });
+                                }
+                              },
+                              validator: (v) => (row.itemNameController.text.trim().isEmpty && v == null) ? 'Select a SKU or add new' : null,
                             ),
                           ),
-                          IconButton(
-                            onPressed: () => _openSkuMasterPopup(idx),
-                            icon: const Icon(Icons.add_box, color: AppTheme.primary),
-                            tooltip: 'Create New SKU',
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
+                            onPressed: () => _openQuickAddSkuDialog(idx),
+                            icon: const Icon(Icons.add_box, size: 16),
+                            label: const Text('➕ Add New SKU'),
                           ),
                           const SizedBox(width: 8),
                           if (_lineItemRows.length > 1)
@@ -650,13 +530,52 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
                             ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
+
+                      // Row 2: Label Description (Manual / Auto-filled)
+                      TextFormField(
+                        controller: row.itemNameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Label Name / Description *',
+                          hintText: 'e.g. Paracetamol 500mg 100ml Syrup Label',
+                        ),
+                        validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Row 3: Our SKU Code & Client Product Code
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: row.ourSkuCodeController,
+                              decoration: const InputDecoration(
+                                labelText: 'Our Internal SKU Code',
+                                hintText: 'e.g. SKU-CIPLA-PARA-500',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextFormField(
+                              controller: row.clientSkuCodeController,
+                              decoration: const InputDecoration(
+                                labelText: 'Client Product / Part Code',
+                                hintText: 'e.g. CIP-PARA-V2',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Row 4: Dimensions & HSN Code
                       Row(
                         children: [
                           Expanded(
                             child: TextFormField(
                               controller: row.widthController,
-                              decoration: const InputDecoration(labelText: 'Width (mm)', hintText: 'e.g. 215'),
+                              decoration: const InputDecoration(labelText: 'Width (mm)', hintText: 'e.g. 65'),
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
                               onChanged: (_) => setState(() {}),
                             ),
@@ -679,13 +598,15 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
+
+                      // Row 5: Qty, Unit Rate & Total Line Amount
                       Row(
                         children: [
                           Expanded(
                             child: TextFormField(
                               controller: row.qtyController,
-                              decoration: const InputDecoration(labelText: 'Qty (Pcs/Nos) *', hintText: 'e.g. 6000'),
+                              decoration: const InputDecoration(labelText: 'Qty (Pcs/Nos) *', hintText: 'e.g. 60000'),
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
                               validator: (v) => v == null || double.tryParse(v) == null ? 'Required' : null,
                               onChanged: (_) => setState(() {}),
@@ -695,7 +616,7 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
                           Expanded(
                             child: TextFormField(
                               controller: row.rateController,
-                              decoration: const InputDecoration(labelText: 'Unit Rate (Rs.) *', hintText: 'e.g. 5.40'),
+                              decoration: const InputDecoration(labelText: 'Unit Rate (Rs.) *', hintText: 'e.g. 4.50'),
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
                               validator: (v) => v == null || double.tryParse(v) == null ? 'Required' : null,
                               onChanged: (_) => setState(() {}),
@@ -725,7 +646,7 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
             }),
             const SizedBox(height: 16),
 
-            // Section 4: Financial Summary Breakdown
+            // Section 3: Financial Summary Breakdown
             Card(
               elevation: 2,
               child: Padding(
@@ -746,7 +667,7 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
                             onChanged: (_) => setState(() {}),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 16),
                         Expanded(
                           child: TextFormField(
                             controller: _freightChargesController,
@@ -812,21 +733,27 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
 
 class _LineItemRowState {
   final String id;
+  ProductModel? selectedProduct;
   final TextEditingController itemNameController;
   final TextEditingController descController;
   final TextEditingController widthController;
   final TextEditingController heightController;
   final TextEditingController hsnController;
+  final TextEditingController ourSkuCodeController;
+  final TextEditingController clientSkuCodeController;
   final TextEditingController qtyController;
   final TextEditingController rateController;
 
   _LineItemRowState({
     String? id,
+    this.selectedProduct,
     String itemName = '',
     String desc = '',
     String width = '',
     String height = '',
     String hsn = '48211020',
+    String ourSkuCode = '',
+    String clientSkuCode = '',
     String qty = '',
     String rate = '',
   })  : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
@@ -835,6 +762,8 @@ class _LineItemRowState {
         widthController = TextEditingController(text: width),
         heightController = TextEditingController(text: height),
         hsnController = TextEditingController(text: hsn),
+        ourSkuCodeController = TextEditingController(text: ourSkuCode),
+        clientSkuCodeController = TextEditingController(text: clientSkuCode),
         qtyController = TextEditingController(text: qty),
         rateController = TextEditingController(text: rate);
 
@@ -845,6 +774,8 @@ class _LineItemRowState {
       width: '',
       height: '',
       hsn: '48211020',
+      ourSkuCode: '',
+      clientSkuCode: '',
       qty: '',
       rate: '',
     );
@@ -858,6 +789,8 @@ class _LineItemRowState {
       width: model.sizeWidthMm > 0 ? model.sizeWidthMm.toString() : '',
       height: model.sizeHeightMm > 0 ? model.sizeHeightMm.toString() : '',
       hsn: model.hsnCode,
+      ourSkuCode: model.ourSkuCode,
+      clientSkuCode: model.customerSkuCode,
       qty: model.quantityPcs > 0 ? model.quantityPcs.toString() : '',
       rate: model.unitRateRs > 0 ? model.unitRateRs.toString() : '',
     );
@@ -875,6 +808,8 @@ class _LineItemRowState {
     widthController.dispose();
     heightController.dispose();
     hsnController.dispose();
+    ourSkuCodeController.dispose();
+    clientSkuCodeController.dispose();
     qtyController.dispose();
     rateController.dispose();
   }

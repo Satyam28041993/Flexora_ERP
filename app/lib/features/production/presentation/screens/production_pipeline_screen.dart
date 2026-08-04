@@ -47,11 +47,13 @@ class _ProductionPipelineScreenState extends ConsumerState<ProductionPipelineScr
       appBar: AppBar(
         title: const Text('🏭 Production Tracking & Status Control Center'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: 'New Production Order',
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
             onPressed: () => _openNewJobDialog(context),
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('New Order Entry'),
           ),
+          const SizedBox(width: 12),
         ],
         bottom: TabBar(
           controller: _tabController,
@@ -65,11 +67,14 @@ class _ProductionPipelineScreenState extends ConsumerState<ProductionPipelineScr
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openNewJobDialog(context),
-        icon: const Icon(Icons.add),
-        label: const Text('New Order Entry'),
-      ),
+      floatingActionButton: _selectedJobIds.isEmpty
+          ? FloatingActionButton.extended(
+              onPressed: () => _openNewJobDialog(context),
+              backgroundColor: AppTheme.primary,
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: const Text('New Order Entry', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            )
+          : null, // Hide FAB when batch selection bar is visible to prevent overlap
       body: Stack(
         children: [
           Column(
@@ -114,6 +119,13 @@ class _ProductionPipelineScreenState extends ConsumerState<ProductionPipelineScr
                               selected: _selectedPendingFilter == null,
                               label: const Text('All Pending'),
                               onSelected: (_) => setState(() => _selectedPendingFilter = null),
+                            ),
+                            const SizedBox(width: 8),
+                            FilterChip(
+                              selected: _selectedPendingFilter == PendingSubStatus.newPending,
+                              label: const Text('🔵 New Pending'),
+                              selectedColor: Colors.blue.shade100,
+                              onSelected: (_) => setState(() => _selectedPendingFilter = PendingSubStatus.newPending),
                             ),
                             const SizedBox(width: 8),
                             FilterChip(
@@ -167,14 +179,14 @@ class _ProductionPipelineScreenState extends ConsumerState<ProductionPipelineScr
             ],
           ),
 
-          // BATCH SELECTION FLOATING ACTION BAR
+          // BATCH SELECTION FLOATING ACTION BAR (ZERO OVERLAP WITH FAB)
           if (_selectedJobIds.isNotEmpty)
             Positioned(
               left: 20,
               right: 20,
-              bottom: 20,
+              bottom: 16,
               child: Card(
-                elevation: 6,
+                elevation: 8,
                 color: const Color(0xFF1E293B),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: Padding(
@@ -190,7 +202,7 @@ class _ProductionPipelineScreenState extends ConsumerState<ProductionPipelineScr
                             child: Text('${_selectedJobIds.length}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                           ),
                           const SizedBox(width: 12),
-                          const Text('Jobs Selected for Batch Action', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                          const Text('Jobs Selected for Batch Status Action', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
                         ],
                       ),
                       Wrap(
@@ -392,7 +404,7 @@ class _ProductionPipelineScreenState extends ConsumerState<ProductionPipelineScr
     setState(() => _selectedJobIds.clear());
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Updated $newSubStatus for selected jobs'), backgroundColor: Colors.green.shade800),
+        SnackBar(content: Text('Updated status to [$newSubStatus] for selected jobs'), backgroundColor: Colors.green.shade800),
       );
     }
   }
@@ -405,7 +417,7 @@ class _ProductionPipelineScreenState extends ConsumerState<ProductionPipelineScr
     setState(() => _selectedJobIds.clear());
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Moved selected jobs to $newStage stage'), backgroundColor: Colors.green.shade800),
+        SnackBar(content: Text('Moved selected jobs to [$newStage] stage'), backgroundColor: Colors.green.shade800),
       );
     }
   }
@@ -434,12 +446,12 @@ class _JobCard extends ConsumerWidget {
     final dateFormat = DateFormat('dd-MM-yyyy');
 
     return Card(
-      elevation: isSelected ? 3.0 : 1.5,
-      color: isSelected ? Colors.blue.shade50.withAlpha(120) : null,
+      elevation: isSelected ? 4.0 : 2.0,
+      color: isSelected ? Colors.blue.shade50.withAlpha(150) : Colors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         side: BorderSide(
-          color: isSelected ? AppTheme.primary : _getBadgeColor().withAlpha(100),
+          color: isSelected ? AppTheme.primary : _getBadgeColor().withAlpha(120),
           width: isSelected ? 2 : 1,
         ),
       ),
@@ -455,12 +467,19 @@ class _JobCard extends ConsumerWidget {
                 Row(
                   children: [
                     Checkbox(value: isSelected, onChanged: (_) => onToggleSelect()),
-                    Text(job.jobDocNo, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: AppTheme.primary)),
+                    Text(job.jobDocNo, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.primary)),
                     const SizedBox(width: 10),
-                    Chip(
-                      label: Text(job.currentStage == ProductionStage.pending ? job.pendingSubStatus : job.currentStage),
-                      backgroundColor: _getBadgeColor().withAlpha(30),
-                      labelStyle: TextStyle(fontWeight: FontWeight.bold, color: _getBadgeColor(), fontSize: 11),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _getBadgeColor().withAlpha(30),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: _getBadgeColor().withAlpha(150)),
+                      ),
+                      child: Text(
+                        job.currentStage == ProductionStage.pending ? job.pendingSubStatus : job.currentStage,
+                        style: TextStyle(fontWeight: FontWeight.bold, color: _getBadgeColor(), fontSize: 12),
+                      ),
                     ),
                   ],
                 ),
@@ -473,12 +492,12 @@ class _JobCard extends ConsumerWidget {
             Text(job.materialDescription, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
             Text('Client: ${job.clientName} | PO No: ${job.poNumber.isNotEmpty ? job.poNumber : 'N/A'} | Plant: ${job.plantLocation}',
                 style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
 
-            // VISUAL WORKFLOW PROGRESS STEPPER BAR
-            _buildWorkflowStepper(ref),
+            // INTERACTIVE WORKFLOW STEPPER BAR
+            _buildInteractiveWorkflowStepper(context, ref),
 
-            const Divider(height: 16),
+            const Divider(height: 20),
 
             // Key Specs & Live Formulas
             Row(
@@ -506,13 +525,13 @@ class _JobCard extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
 
-            // Stage Action Buttons
+            // Stage Action Buttons & Sub-Status Selector Dropdown
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 // Edit Button
                 IconButton(
-                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  icon: const Icon(Icons.edit_outlined, size: 20, color: AppTheme.primary),
                   tooltip: 'Edit Job Details',
                   onPressed: () => showDialog(
                     context: context,
@@ -520,46 +539,92 @@ class _JobCard extends ConsumerWidget {
                   ),
                 ),
 
-                // Pipeline Movement Controls
+                // Active Pipeline Movement Controls & Sub-Status Selector
                 Row(
                   children: [
                     if (job.currentStage == ProductionStage.pending) ...[
-                      // Pre-press Sub-Status actions
-                      PopupMenuButton<String>(
-                        onSelected: (subStatus) async {
-                          final repo = ref.read(productionRepositoryProvider);
-                          await repo.updateJobPendingSubStatus(job.id, subStatus);
-                        },
-                        itemBuilder: (ctx) => PendingSubStatus.values
-                            .map((s) => PopupMenuItem(value: s, child: Text('Set Status: $s')))
-                            .toList(),
-                        child: OutlinedButton.icon(
-                          onPressed: null,
-                          icon: const Icon(Icons.tune, size: 14),
-                          label: const Text('Change Pre-Press Status', style: TextStyle(fontSize: 12)),
+                      // Prominent Interactive Dropdown for Pre-Press Sub-Status
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        decoration: BoxDecoration(
+                          color: _getBadgeColor().withAlpha(20),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: _getBadgeColor()),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: job.pendingSubStatus,
+                            icon: Icon(Icons.arrow_drop_down, color: _getBadgeColor()),
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _getBadgeColor()),
+                            onChanged: (String? newSubStatus) async {
+                              if (newSubStatus != null) {
+                                final repo = ref.read(productionRepositoryProvider);
+                                await repo.updateJobPendingSubStatus(job.id, newSubStatus);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Job ${job.jobDocNo} status changed to [$newSubStatus]'), backgroundColor: Colors.green.shade800),
+                                  );
+                                }
+                              }
+                            },
+                            items: PendingSubStatus.values.map((String status) {
+                              return DropdownMenuItem<String>(
+                                value: status,
+                                child: Text('Status: $status', style: const TextStyle(color: Colors.black87)),
+                              );
+                            }).toList(),
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 10),
                       ElevatedButton.icon(
                         onPressed: () async {
                           final repo = ref.read(productionRepositoryProvider);
                           await repo.updateJobStage(job.id, ProductionStage.schedule);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Job ${job.jobDocNo} moved to Printing Schedule ➔'), backgroundColor: Colors.green.shade800),
+                            );
+                          }
                         },
                         style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
                         icon: const Icon(Icons.arrow_forward, size: 14),
                         label: const Text('Move to Schedule ➔', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                       ),
                     ] else if (job.currentStage == ProductionStage.schedule) ...[
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          final repo = ref.read(productionRepositoryProvider);
+                          await repo.updateJobStage(job.id, ProductionStage.pending);
+                        },
+                        icon: const Icon(Icons.arrow_back, size: 14),
+                        label: const Text('◀ Back to Pending', style: TextStyle(fontSize: 11)),
+                      ),
+                      const SizedBox(width: 8),
                       ElevatedButton.icon(
                         onPressed: () async {
                           final repo = ref.read(productionRepositoryProvider);
                           await repo.updateJobStage(job.id, ProductionStage.postpress);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Job ${job.jobDocNo} moved to Postpress (Slitting/Die) ➔'), backgroundColor: Colors.green.shade800),
+                            );
+                          }
                         },
                         style: ElevatedButton.styleFrom(backgroundColor: Colors.amber.shade800, foregroundColor: Colors.white),
                         icon: const Icon(Icons.precision_manufacturing, size: 14),
                         label: const Text('Move to Postpress ➔', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                       ),
                     ] else if (job.currentStage == ProductionStage.postpress) ...[
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          final repo = ref.read(productionRepositoryProvider);
+                          await repo.updateJobStage(job.id, ProductionStage.schedule);
+                        },
+                        icon: const Icon(Icons.arrow_back, size: 14),
+                        label: const Text('◀ Back to Schedule', style: TextStyle(fontSize: 11)),
+                      ),
+                      const SizedBox(width: 8),
                       ElevatedButton.icon(
                         onPressed: () => _openDispatchDialog(context, ref),
                         style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade800, foregroundColor: Colors.white),
@@ -579,44 +644,129 @@ class _JobCard extends ConsumerWidget {
     );
   }
 
-  Widget _buildWorkflowStepper(WidgetRef ref) {
+  /// INTERACTIVE WORKFLOW STEPPER BAR
+  /// Users can click ANY step to immediately transition status!
+  Widget _buildInteractiveWorkflowStepper(BuildContext context, WidgetRef ref) {
     final steps = [
-      {'label': '1. New', 'active': job.pendingSubStatus == PendingSubStatus.newPending && job.currentStage == ProductionStage.pending},
-      {'label': '2. Approval', 'active': job.pendingSubStatus == PendingSubStatus.underApproval && job.currentStage == ProductionStage.pending},
-      {'label': '3. Approved', 'active': job.pendingSubStatus == PendingSubStatus.approvalReceived && job.currentStage == ProductionStage.pending},
-      {'label': '4. Under Plate', 'active': job.pendingSubStatus == PendingSubStatus.underPlate && job.currentStage == ProductionStage.pending},
-      {'label': '5. Printing', 'active': job.currentStage == ProductionStage.schedule},
-      {'label': '6. Postpress', 'active': job.currentStage == ProductionStage.postpress},
-      {'label': '7. Dispatched', 'active': job.currentStage == ProductionStage.dispatched},
+      {
+        'label': '1. New',
+        'active': job.pendingSubStatus == PendingSubStatus.newPending && job.currentStage == ProductionStage.pending,
+        'action': () async {
+          final repo = ref.read(productionRepositoryProvider);
+          if (job.currentStage != ProductionStage.pending) {
+            await repo.updateJobStage(job.id, ProductionStage.pending);
+          }
+          await repo.updateJobPendingSubStatus(job.id, PendingSubStatus.newPending);
+        },
+      },
+      {
+        'label': '2. Approval',
+        'active': job.pendingSubStatus == PendingSubStatus.underApproval && job.currentStage == ProductionStage.pending,
+        'action': () async {
+          final repo = ref.read(productionRepositoryProvider);
+          if (job.currentStage != ProductionStage.pending) {
+            await repo.updateJobStage(job.id, ProductionStage.pending);
+          }
+          await repo.updateJobPendingSubStatus(job.id, PendingSubStatus.underApproval);
+        },
+      },
+      {
+        'label': '3. Approved',
+        'active': job.pendingSubStatus == PendingSubStatus.approvalReceived && job.currentStage == ProductionStage.pending,
+        'action': () async {
+          final repo = ref.read(productionRepositoryProvider);
+          if (job.currentStage != ProductionStage.pending) {
+            await repo.updateJobStage(job.id, ProductionStage.pending);
+          }
+          await repo.updateJobPendingSubStatus(job.id, PendingSubStatus.approvalReceived);
+        },
+      },
+      {
+        'label': '4. Under Plate',
+        'active': job.pendingSubStatus == PendingSubStatus.underPlate && job.currentStage == ProductionStage.pending,
+        'action': () async {
+          final repo = ref.read(productionRepositoryProvider);
+          if (job.currentStage != ProductionStage.pending) {
+            await repo.updateJobStage(job.id, ProductionStage.pending);
+          }
+          await repo.updateJobPendingSubStatus(job.id, PendingSubStatus.underPlate);
+        },
+      },
+      {
+        'label': '5. Printing',
+        'active': job.currentStage == ProductionStage.schedule,
+        'action': () async {
+          final repo = ref.read(productionRepositoryProvider);
+          await repo.updateJobStage(job.id, ProductionStage.schedule);
+        },
+      },
+      {
+        'label': '6. Postpress',
+        'active': job.currentStage == ProductionStage.postpress,
+        'action': () async {
+          final repo = ref.read(productionRepositoryProvider);
+          await repo.updateJobStage(job.id, ProductionStage.postpress);
+        },
+      },
+      {
+        'label': '7. Dispatched',
+        'active': job.currentStage == ProductionStage.dispatched,
+        'action': () {
+          _openDispatchDialog(context, ref);
+        },
+      },
     ];
 
     return Container(
       padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: steps.map((s) {
-            final active = s['active'] as bool;
-            return Container(
-              margin: const EdgeInsets.only(right: 6),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: active ? _getBadgeColor() : Colors.white,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: active ? _getBadgeColor() : Colors.grey.shade300),
-              ),
-              child: Text(
-                s['label'] as String,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: active ? FontWeight.bold : FontWeight.normal,
-                  color: active ? Colors.white : Colors.black87,
-                ),
-              ),
-            );
-          }).toList(),
-        ),
+      decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(left: 4, bottom: 6),
+            child: Text('Workflow Step Pipeline (Click any step to set status directly):', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: steps.map((s) {
+                final active = s['active'] as bool;
+                final action = s['action'] as VoidCallback;
+                return InkWell(
+                  onTap: action,
+                  borderRadius: BorderRadius.circular(6),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: active ? _getBadgeColor() : Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: active ? _getBadgeColor() : Colors.grey.shade400, width: active ? 1.5 : 1),
+                      boxShadow: active ? [BoxShadow(color: _getBadgeColor().withAlpha(80), blurRadius: 4)] : null,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (active) const Icon(Icons.check_circle, color: Colors.white, size: 12),
+                        if (active) const SizedBox(width: 4),
+                        Text(
+                          s['label'] as String,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: active ? FontWeight.bold : FontWeight.w500,
+                            color: active ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -635,6 +785,12 @@ class _JobCard extends ConsumerWidget {
         default:
           return Colors.blue.shade800;
       }
+    } else if (job.currentStage == ProductionStage.schedule) {
+      return Colors.indigo.shade800;
+    } else if (job.currentStage == ProductionStage.postpress) {
+      return Colors.amber.shade900;
+    } else if (job.currentStage == ProductionStage.dispatched) {
+      return Colors.green.shade800;
     }
     return AppTheme.primary;
   }

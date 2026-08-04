@@ -8,6 +8,7 @@ class RmStockInModel {
   final DateTime date;
   final String supplier;
   final String material;
+  final String productCode; // Vendor Product Code (e.g. FASSON FL201)
   final double gsmMicron;
   final double webSizeMm;
   final double rmtIn;
@@ -21,6 +22,7 @@ class RmStockInModel {
     required this.date,
     required this.supplier,
     required this.material,
+    this.productCode = '',
     required this.gsmMicron,
     required this.webSizeMm,
     required this.rmtIn,
@@ -39,6 +41,7 @@ class RmStockInModel {
       date: map['date'] != null ? DateTime.parse(map['date'] as String) : DateTime.now(),
       supplier: map['supplier'] as String? ?? '',
       material: map['material'] as String? ?? '',
+      productCode: map['productCode'] as String? ?? '',
       gsmMicron: (map['gsmMicron'] as num?)?.toDouble() ?? 80.0,
       webSizeMm: (map['webSizeMm'] as num?)?.toDouble() ?? 100.0,
       rmtIn: (map['rmtIn'] as num?)?.toDouble() ?? 0.0,
@@ -54,6 +57,7 @@ class RmStockInModel {
       'date': date.toIso8601String(),
       'supplier': supplier,
       'material': material,
+      'productCode': productCode,
       'gsmMicron': gsmMicron,
       'webSizeMm': webSizeMm,
       'rmtIn': rmtIn,
@@ -212,6 +216,7 @@ class RmJobReconciliationModel {
   final String jobDocNo;
   final String clientName;
   final String material;
+  final String supplier;
   final double gsmMicron;
   final double webSizeMm;
   final double targetRmt;
@@ -225,6 +230,7 @@ class RmJobReconciliationModel {
     required this.jobDocNo,
     required this.clientName,
     required this.material,
+    this.supplier = 'Avery Dennison',
     required this.gsmMicron,
     required this.webSizeMm,
     required this.targetRmt,
@@ -263,10 +269,11 @@ class RmJobReconciliationModel {
   }
 }
 
-/// On-Hand Store Roll Inventory Model
+/// On-Hand Store Roll Inventory Model (Grouped by Material, Web Size, AND Supplier)
 @immutable
 class RmStockBalanceModel {
   final String material;
+  final String supplier;
   final double gsmMicron;
   final double webSizeMm;
   final double rmtIn;
@@ -276,6 +283,7 @@ class RmStockBalanceModel {
 
   const RmStockBalanceModel({
     required this.material,
+    required this.supplier,
     required this.gsmMicron,
     required this.webSizeMm,
     required this.rmtIn,

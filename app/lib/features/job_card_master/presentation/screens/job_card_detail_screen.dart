@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/constants/firestore_paths.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../production/data/models/production_job_model.dart';
+import '../../../production/logic/production_providers.dart';
 import '../../data/models/job_card_model.dart';
 import '../../data/models/master_card_model.dart';
 import '../../logic/job_card_providers.dart';
@@ -187,6 +189,32 @@ class JobCardDetailScreen extends ConsumerWidget {
                           _buildRow('Pre-Press Verified By', masterCard.verifiedBy),
                           _buildRow('Verification Date', dateFormat.format(masterCard.verificationDate)),
                           _buildRow('Handover Status', 'Master Card + Job Card + Plate + Die Ready'),
+                          const SizedBox(height: 12),
+                          if (jobCard.status.toLowerCase() == 'in_production')
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade100,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: const [
+                                  Icon(Icons.check_circle, color: Colors.green),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'In Production Pipeline (Pending Job Stage)',
+                                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
+                              onPressed: () => _pushToProductionJob(context, ref, jobCard),
+                              icon: const Icon(Icons.rocket_launch),
+                              label: const Text('🚀 Push to Production Pipeline (Pending Jobs)'),
+                            ),
                         ],
                       ),
                     ),
@@ -202,6 +230,55 @@ class JobCardDetailScreen extends ConsumerWidget {
         );
       },
     );
+  }
+
+  Future<void> _pushToProductionJob(BuildContext context, WidgetRef ref, JobCardModel jobCard) async {
+    try {
+      final prodRepo = ref.read(productionRepositoryProvider);
+      final prodJob = ProductionJobModel(
+        id: '',
+        plantId: jobCard.plantId.isEmpty ? DefaultPlant.id : jobCard.plantId,
+        jobDocNo: jobCard.jobCardNo,
+        clientName: jobCard.customerName,
+        orderDate: DateTime.now(),
+        poNumber: jobCard.poNumber,
+        materialDescription: jobCard.productName,
+        totalReqQty: jobCard.targetOrderQty,
+        gearTeethCount: 96,
+        ups: jobCard.ups > 0 ? jobCard.ups : 2,
+        paperSizeMm: jobCard.paperSize,
+        substrateMaterial: 'Self-Adhesive Chromo Paper',
+        labelSize: '${jobCard.paperSize.toInt()} mm',
+        pendingSubStatus: PendingSubStatus.newPending,
+        currentStage: ProductionStage.pending,
+        paperStatus: 'Available',
+        plateStatus: jobCard.plateCode.isNotEmpty ? 'Ready' : 'Pending',
+        punchStatus: jobCard.dieCode.isNotEmpty ? 'Ready' : 'Pending',
+        plantLocation: 'DAMAN',
+        createdAt: DateTime.now(),
+        createdBy: 'master_card_handover',
+      );
+
+      await prodRepo.createProductionJob(prodJob);
+
+      final repo = ref.read(jobCardRepositoryProvider);
+      await repo.updateJobCardStatus(jobCard.id, 'in_production');
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('🚀 Job Card [${jobCard.jobCardNo}] pushed to Production Pipeline (Pending Stage)!'),
+            backgroundColor: AppTheme.accentEmerald,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error pushing to production: $e'), backgroundColor: AppTheme.danger),
+        );
+      }
+    }
   }
 
   void _openPrintPreview(BuildContext context, JobCardModel jobCard) {
@@ -265,12 +342,16 @@ class JobCardDetailScreen extends ConsumerWidget {
               );
 
               await repo.createMasterCard(masterCard);
+
+              // Automatically push job to Production Pipeline (Pending Stage)
+              await _pushToProductionJob(context, ref, jobCard);
+
               if (ctx.mounted) {
                 Navigator.of(ctx).pop();
                 ref.invalidate(masterCardFutureProvider(jobCard.id));
               }
             },
-            child: const Text('Confirm Handover & Issue Master Card'),
+            child: const Text('Confirm Handover & Issue to Production'),
           ),
         ],
       ),

@@ -23,6 +23,9 @@ class OrderLineItemModel {
 
   final DateTime? deliveryScheduleDate;
 
+  final String ourSkuCode;
+  final String customerSkuCode;
+
   const OrderLineItemModel({
     required this.id,
     required this.itemNo,
@@ -35,6 +38,8 @@ class OrderLineItemModel {
     this.sizeWidthMm = 0.0,
     this.sizeHeightMm = 0.0,
     this.substrateSpec = 'Self-Adhesive Chromo Paper',
+    this.ourSkuCode = '',
+    this.customerSkuCode = '',
     this.deliveryScheduleDate,
   });
 
@@ -48,6 +53,8 @@ class OrderLineItemModel {
       sizeWidthMm: (map['sizeWidthMm'] as num?)?.toDouble() ?? 0.0,
       sizeHeightMm: (map['sizeHeightMm'] as num?)?.toDouble() ?? 0.0,
       substrateSpec: map['substrateSpec'] as String? ?? 'Self-Adhesive Chromo Paper',
+      ourSkuCode: map['ourSkuCode'] as String? ?? '',
+      customerSkuCode: map['customerSkuCode'] as String? ?? '',
       quantityPcs: (map['quantityPcs'] as num?)?.toDouble() ?? 0.0,
       unitRateRs: (map['unitRateRs'] as num?)?.toDouble() ?? 0.0,
       lineAmountRs: (map['lineAmountRs'] as num?)?.toDouble() ?? 0.0,
@@ -67,6 +74,8 @@ class OrderLineItemModel {
       'sizeWidthMm': sizeWidthMm,
       'sizeHeightMm': sizeHeightMm,
       'substrateSpec': substrateSpec,
+      'ourSkuCode': ourSkuCode,
+      'customerSkuCode': customerSkuCode,
       'quantityPcs': quantityPcs,
       'unitRateRs': unitRateRs,
       'lineAmountRs': lineAmountRs,

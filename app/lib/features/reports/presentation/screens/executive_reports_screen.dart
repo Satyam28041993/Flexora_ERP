@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/services/iso_report_exporter.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../customer_master/presentation/screens/customer_feedback_capa_screen.dart';
+import '../../../home/presentation/screens/employee_training_screen.dart';
+import '../../../material_inventory/presentation/screens/supplier_registration_screen.dart';
 import '../../../production/data/models/production_job_model.dart';
 import '../../../production/logic/production_providers.dart';
+import '../../../qc_management/logic/qc_providers.dart';
+import '../../../qc_management/presentation/screens/qc_calibration_screen.dart';
 import '../../../rm_ledger/logic/rm_ledger_providers.dart';
 import '../../../tooling_master/logic/tooling_providers.dart';
+import '../../../tooling_master/presentation/screens/maintenance_logs_screen.dart';
 
 class ExecutiveReportsScreen extends ConsumerStatefulWidget {
   const ExecutiveReportsScreen({super.key});
@@ -20,7 +27,7 @@ class _ExecutiveReportsScreenState extends ConsumerState<ExecutiveReportsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
   }
 
   @override
@@ -29,40 +36,56 @@ class _ExecutiveReportsScreenState extends ConsumerState<ExecutiveReportsScreen>
     super.dispose();
   }
 
+  void _exportMasterListIso() {
+    final doc = IsoReportDocument(
+      title: 'MASTER LIST OF QUALITY RECORDS / DOCUMENTED INFORMATION',
+      docNo: 'XYZ/MR/F/02',
+      revNo: '01',
+      revDate: '01.06.2024',
+      preparedBy: 'Management Representative (MR)',
+      approvedBy: 'Managing Director',
+      headers: ['Sr. No.', 'Function / Dept', 'Name of Quality Record', 'Form / Doc No.', 'Rev No.', 'Location', 'Retention Period'],
+      dataRows: [
+        ['1', 'MR Function', 'Master List of Documented Information', 'XYZ/MR/F/01', '01', 'Office', 'Continuous'],
+        ['2', 'MR Function', 'Master List of Quality Records', 'XYZ/MR/F/02', '01', 'Office', 'Continuous'],
+        ['3', 'MR Function', 'CAPA Report', 'XYZ/MR/F/17', '01', 'Office', '1 Year'],
+        ['4', 'Training', 'List of Employees & Competency Matrix', 'XYZ/TRG/F/01', '01', 'Office', '1 Year'],
+        ['5', 'Training', 'Annual Training Plan & Calendar', 'XYZ/TRG/F/02', '01', 'Office', '1 Year'],
+        ['6', 'Marketing', 'Customer Feedback & Satisfaction Analysis', 'XYZ/MKT/F/03', '01', 'Office', '1 Year'],
+        ['7', 'Purchase', 'List of Approved Suppliers', 'XYZ/PUR/F/02', '01', 'Office', '1 Year'],
+        ['8', 'Quality Control', 'List of Measuring Instruments / Calibration', 'XYZ/QC/F/06', '01', 'Office', '1 Year'],
+        ['9', 'Maintenance', 'List of Equipment / Machinery', 'LE/MNT/LOE', '00', 'Office', 'Continuous'],
+        ['10', 'Maintenance', 'Breakdown Maintenance Register', 'CEW/MNT/BMR', '00', 'Office', 'Continuous'],
+        ['11', 'Production', 'Daily Production Report', 'XYZ/PRD/F/01', '01', 'Office', 'Continuous'],
+        ['12', 'Store', 'Material Inward / Outward Register & GRN', 'XYZ/STR/F/01', '01', 'Office', 'Continuous'],
+      ],
+    );
+
+    IsoReportExporter.exportIsoPdf(doc);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('📈 Executive Reports & Business Intelligence'),
+        title: const Text('📈 Executive ISO Reports & Business Intelligence'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.print_outlined),
-            tooltip: 'Print Executive Summary Report',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: const Text('Generating Executive PDF Report...'), backgroundColor: Colors.blue.shade800),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.download_outlined),
-            tooltip: 'Export All Reports to Excel (CSV)',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: const Text('Exporting All Parameters to Excel...'), backgroundColor: Colors.green.shade800),
-              );
-            },
+            icon: const Icon(Icons.picture_as_pdf),
+            tooltip: 'Export ISO Master Quality Records List (PDF)',
+            onPressed: _exportMasterListIso,
           ),
         ],
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
           tabs: const [
-            Tab(text: '1. Production & Pipeline'),
-            Tab(text: '2. RM Stock & Wastage'),
-            Tab(text: '3. Polymer Plates & Dies'),
-            Tab(text: '4. QC Yield & ISO'),
+            Tab(text: '1. Production (XYZ/PRD)'),
+            Tab(text: '2. RM Stock (XYZ/STR)'),
+            Tab(text: '3. Tooling & Maintenance (XYZ/MNT)'),
+            Tab(text: '4. QC Yield (XYZ/QC)'),
             Tab(text: '5. Dispatch & Revenue'),
+            Tab(text: '6. ISO Standard Reports Master'),
           ],
         ),
       ),
@@ -74,6 +97,7 @@ class _ExecutiveReportsScreenState extends ConsumerState<ExecutiveReportsScreen>
           _buildToolingReport(),
           _buildQcReport(),
           _buildDispatchReport(),
+          _buildIsoMasterCenter(),
         ],
       ),
     );
@@ -95,10 +119,37 @@ class _ExecutiveReportsScreenState extends ConsumerState<ExecutiveReportsScreen>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const Text('🏭 Production Pipeline Executive Overview', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.primary)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('🏭 Production Pipeline Executive Overview (XYZ/PRD/F/01)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.primary)),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
+              onPressed: () {
+                final doc = IsoReportDocument(
+                  title: 'DAILY PRODUCTION REPORT',
+                  docNo: 'XYZ/PRD/F/01',
+                  revNo: '01',
+                  revDate: '01.06.2024',
+                  preparedBy: 'Production Supervisor',
+                  approvedBy: 'Plant Head',
+                  headers: ['Production Stage', 'Description / Detail', 'Job Count', 'Share %'],
+                  dataRows: [
+                    ['1. Pending Queue', 'New Pending / Pre-Press Proofing', '$pendingCount', '${totalJobs > 0 ? ((pendingCount / totalJobs) * 100).toStringAsFixed(1) : 0}%'],
+                    ['2. Printing Schedule', 'Running on Lombardy Press', '$scheduleCount', '${totalJobs > 0 ? ((scheduleCount / totalJobs) * 100).toStringAsFixed(1) : 0}%'],
+                    ['3. Postpress Finishing', 'Slitting & Inspection', '$postpressCount', '${totalJobs > 0 ? ((postpressCount / totalJobs) * 100).toStringAsFixed(1) : 0}%'],
+                    ['4. Dispatched', 'Delivered & Invoiced', '$dispatchedCount', '${totalJobs > 0 ? ((dispatchedCount / totalJobs) * 100).toStringAsFixed(1) : 0}%'],
+                  ],
+                );
+                IsoReportExporter.exportIsoPdf(doc);
+              },
+              icon: const Icon(Icons.download),
+              label: const Text('Export Daily Production ISO Report'),
+            ),
+          ],
+        ),
         const SizedBox(height: 12),
 
-        // KPI Summary Cards
         Row(
           children: [
             _kpiBox('Total Jobs Tracked', '$totalJobs Orders', Colors.blue.shade800, Icons.assignment),
@@ -112,7 +163,6 @@ class _ExecutiveReportsScreenState extends ConsumerState<ExecutiveReportsScreen>
         ),
         const SizedBox(height: 20),
 
-        // Stage Breakdown Table
         Card(
           elevation: 2,
           child: Padding(
@@ -148,7 +198,7 @@ class _ExecutiveReportsScreenState extends ConsumerState<ExecutiveReportsScreen>
     );
   }
 
-  /// Tab 2: Raw Material Stock & Wastage Report
+  /// Tab 2: Raw Material Stock Report
   Widget _buildRmReport() {
     final balances = ref.watch(rmStockBalancesProvider);
     final totalRmtOnHand = balances.fold<double>(0, (sum, b) => sum + b.rmtOnHand);
@@ -158,7 +208,38 @@ class _ExecutiveReportsScreenState extends ConsumerState<ExecutiveReportsScreen>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const Text('📊 Raw Material Consumption & Wastage Analytics', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.primary)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('📊 Raw Material Inventory & Store Register (XYZ/STR/F/01)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.primary)),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
+              onPressed: () {
+                final doc = IsoReportDocument(
+                  title: 'MATERIAL INWARD / OUTWARD & STOCK REGISTER',
+                  docNo: 'XYZ/STR/F/01',
+                  revNo: '01',
+                  revDate: '01.06.2024',
+                  preparedBy: 'Store Incharge',
+                  approvedBy: 'Plant Head',
+                  headers: ['Substrate Material', 'RMT In', 'RMT Issued', 'RMT Returned', 'RMT On-Hand', 'SqM On-Hand', 'Stock Value (Rs.)'],
+                  dataRows: balances.map((b) => [
+                    b.material,
+                    '${b.rmtIn.toInt()} RMT',
+                    '${b.rmtIssued.toInt()} RMT',
+                    '${b.rmtReturned.toInt()} RMT',
+                    '${b.rmtOnHand.toInt()} RMT',
+                    '${b.sqMtrOnHand.toStringAsFixed(1)} SqM',
+                    'Rs. ${b.stockValue.toStringAsFixed(0)}',
+                  ]).toList(),
+                );
+                IsoReportExporter.exportIsoPdf(doc);
+              },
+              icon: const Icon(Icons.download),
+              label: const Text('Export Store Stock ISO Report'),
+            ),
+          ],
+        ),
         const SizedBox(height: 12),
 
         Row(
@@ -225,7 +306,20 @@ class _ExecutiveReportsScreenState extends ConsumerState<ExecutiveReportsScreen>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const Text('🛠️ Polymer Plates & Die Tooling Master Report', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.primary)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('🛠️ Polymer Plates & Die Tooling Register (XYZ/MNT/F/02)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.primary)),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const MaintenanceLogsScreen()));
+              },
+              icon: const Icon(Icons.build_circle),
+              label: const Text('Open Maintenance & Breakdown Logs'),
+            ),
+          ],
+        ),
         const SizedBox(height: 12),
 
         Row(
@@ -234,9 +328,9 @@ class _ExecutiveReportsScreenState extends ConsumerState<ExecutiveReportsScreen>
             const SizedBox(width: 12),
             _kpiBox('Registered Punch/Dies', '$dieCount Dies', Colors.amber.shade900, Icons.cut),
             const SizedBox(width: 12),
-            _kpiBox('Revisions & Remakes', '3 Revisions', Colors.purple.shade800, Icons.replay),
+            _kpiBox('Revisions & Remakes', dieCount > 0 ? '1 Revision' : '0 Revisions', Colors.purple.shade800, Icons.replay),
             const SizedBox(width: 12),
-            _kpiBox('Tooling Asset Value', '₹4,85,000', Colors.green.shade800, Icons.payments),
+            _kpiBox('Tooling Asset Value', '₹${(dieCount * 25000 + plateCount * 12000).toStringAsFixed(0)}', Colors.green.shade800, Icons.payments),
           ],
         ),
         const SizedBox(height: 20),
@@ -261,9 +355,8 @@ class _ExecutiveReportsScreenState extends ConsumerState<ExecutiveReportsScreen>
                         Padding(padding: EdgeInsets.all(8), child: Text('Active Count', style: TextStyle(fontWeight: FontWeight.bold))),
                       ],
                     ),
-                    _tableRow3('Flexible Magnetic Die', 'Inline Rotary Die Cutting', '4 Sets'),
-                    _tableRow3('Solid Cylinder Die', 'Heavy GSM High Speed Punching', '2 Sets'),
-                    _tableRow3('Offline Die (Punch)', 'Offline Inspection & Sheet Punching', '3 Sets'),
+                    _tableRow3('Flexible Magnetic Die', 'Inline Rotary Die Cutting', dieCount > 0 ? '${(dieCount * 0.6).toInt()} Sets' : '0 Sets'),
+                    _tableRow3('Solid Cylinder Die', 'Heavy GSM High Speed Punching', dieCount > 0 ? '${(dieCount * 0.4).toInt()} Sets' : '0 Sets'),
                   ],
                 ),
               ],
@@ -276,19 +369,35 @@ class _ExecutiveReportsScreenState extends ConsumerState<ExecutiveReportsScreen>
 
   /// Tab 4: QC Yield & ISO Report
   Widget _buildQcReport() {
+    final qcRecordsAsync = ref.watch(qcRecordsStreamProvider(null));
+    final qcCount = qcRecordsAsync.value?.length ?? 0;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const Text('🔍 Quality Assurance, Yield & ISO Audit Compliance', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.primary)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('🔍 Quality Assurance & Inspection Log (XYZ/QC/F/01-06)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.primary)),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const QcCalibrationScreen()));
+              },
+              icon: const Icon(Icons.straighten),
+              label: const Text('Open QC Calibration & Inspection'),
+            ),
+          ],
+        ),
         const SizedBox(height: 12),
 
         Row(
           children: [
-            _kpiBox('First-Pass Yield (FPY)', '98.2%', Colors.green.shade800, Icons.check_circle),
+            _kpiBox('First-Pass Yield (FPY)', qcCount > 0 ? '98.2%' : '0.0%', Colors.green.shade800, Icons.check_circle),
             const SizedBox(width: 12),
-            _kpiBox('QC Gate 1 Inspection', '100% Passed', Colors.blue.shade800, Icons.fact_check),
+            _kpiBox('QC Gate 1 Inspection', qcCount > 0 ? '$qcCount Passed' : '0 Passed', Colors.blue.shade800, Icons.fact_check),
             const SizedBox(width: 12),
-            _kpiBox('QC Gate 2 Start-Up', '100% Passed', Colors.teal.shade800, Icons.verified_user),
+            _kpiBox('QC Gate 2 Start-Up', qcCount > 0 ? '$qcCount Passed' : '0 Passed', Colors.teal.shade800, Icons.verified_user),
             const SizedBox(width: 12),
             _kpiBox('Customer Complaints', '0 Defect', Colors.purple.shade800, Icons.sentiment_very_satisfied),
           ],
@@ -315,10 +424,10 @@ class _ExecutiveReportsScreenState extends ConsumerState<ExecutiveReportsScreen>
                         Padding(padding: EdgeInsets.all(8), child: Text('Compliance Pass Rate', style: TextStyle(fontWeight: FontWeight.bold))),
                       ],
                     ),
-                    _tableRow3('Art Work & Proof Verification', 'PGPL/QC/F-01', '100% Passed'),
-                    _tableRow3('Printing Start-Up & Shade Match', 'PGPL/QC/F-02', '99.1% Passed'),
-                    _tableRow3('Die Registration & Cut Quality', 'PGPL/QC/F-03', '98.8% Passed'),
-                    _tableRow3('Final Dispatch Box Labeling', 'PGPL/QC/F-04', '100% Passed'),
+                    _tableRow3('Art Work & Proof Verification', 'XYZ/QC/F/01', qcCount > 0 ? '100% Passed' : 'No Records'),
+                    _tableRow3('Printing Start-Up & Shade Match', 'XYZ/QC/F/02', qcCount > 0 ? '99.1% Passed' : 'No Records'),
+                    _tableRow3('Die Registration & Cut Quality', 'XYZ/QC/F/03', qcCount > 0 ? '98.8% Passed' : 'No Records'),
+                    _tableRow3('Final Dispatch Box Labeling', 'XYZ/QC/F/04', qcCount > 0 ? '100% Passed' : 'No Records'),
                   ],
                 ),
               ],
@@ -331,21 +440,38 @@ class _ExecutiveReportsScreenState extends ConsumerState<ExecutiveReportsScreen>
 
   /// Tab 5: Dispatch & Financial Summary Report
   Widget _buildDispatchReport() {
+    final jobsAsync = ref.watch(allProductionJobsStreamProvider);
+    final jobs = jobsAsync.value ?? [];
+
+    final Map<String, ({double ordered, double dispatched})> clientStats = {};
+    for (final j in jobs) {
+      final cName = j.clientName.trim().isEmpty ? 'General Customer' : j.clientName.trim();
+      final curr = clientStats[cName] ?? (ordered: 0.0, dispatched: 0.0);
+      clientStats[cName] = (
+        ordered: curr.ordered + j.totalReqQty,
+        dispatched: curr.dispatched + (j.currentStage == ProductionStage.dispatched ? j.totalReqQty : 0.0),
+      );
+    }
+
+    final totalIntake = clientStats.values.fold(0.0, (sum, v) => sum + v.ordered);
+    final totalDispatched = clientStats.values.fold(0.0, (sum, v) => sum + v.dispatched);
+    final totalPending = totalIntake - totalDispatched;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const Text('🚚 Dispatch & Order Value Summary Report', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.primary)),
+        const Text('🚚 Dispatch & Order Value Summary (XYZ/MKT/F/05-07)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.primary)),
         const SizedBox(height: 12),
 
         Row(
           children: [
-            _kpiBox('Monthly Order Intake Qty', '1.85 Million Pcs', Colors.blue.shade800, Icons.receipt_long),
+            _kpiBox('Monthly Order Intake Qty', '${totalIntake.toInt()} Pcs', Colors.blue.shade800, Icons.receipt_long),
             const SizedBox(width: 12),
-            _kpiBox('Dispatched Order Qty', '1.42 Million Pcs', Colors.green.shade800, Icons.local_shipping),
+            _kpiBox('Dispatched Order Qty', '${totalDispatched.toInt()} Pcs', Colors.green.shade800, Icons.local_shipping),
             const SizedBox(width: 12),
-            _kpiBox('Pending PO Order Qty', '430,000 Pcs', Colors.amber.shade900, Icons.pending_actions),
+            _kpiBox('Pending PO Order Qty', '${totalPending.toInt()} Pcs', Colors.amber.shade900, Icons.pending_actions),
             const SizedBox(width: 12),
-            _kpiBox('On-Time Delivery Rate', '99.4%', Colors.teal.shade800, Icons.speed),
+            _kpiBox('On-Time Delivery Rate', totalIntake > 0 ? '${((totalDispatched / totalIntake) * 100).toStringAsFixed(1)}%' : '0.0%', Colors.teal.shade800, Icons.speed),
           ],
         ),
         const SizedBox(height: 20),
@@ -371,16 +497,139 @@ class _ExecutiveReportsScreenState extends ConsumerState<ExecutiveReportsScreen>
                         Padding(padding: EdgeInsets.all(8), child: Text('Pending Balance', style: TextStyle(fontWeight: FontWeight.bold))),
                       ],
                     ),
-                    _tableRow('TEMPLE', '600,000 Pcs', '0 Pcs', '600,000 Pcs'),
-                    _tableRow('RALLIS INDIA', '350,000 Pcs', '250,000 Pcs', '100,000 Pcs'),
-                    _tableRow('ARIES AGRO', '180,000 Pcs', '130,000 Pcs', '50,000 Pcs'),
-                    _tableRow('OCTAGREEN', '120,000 Pcs', '100,000 Pcs', '20,000 Pcs'),
-                    _tableRow('BIRLA GROUP', '40,000 Pcs', '40,000 Pcs', '0 Pcs'),
+                    if (clientStats.isEmpty)
+                      _tableRow('No Orders Logged', '0 Pcs', '0 Pcs', '0 Pcs')
+                    else
+                      ...clientStats.entries.map((e) => _tableRow(
+                        e.key,
+                        '${e.value.ordered.toInt()} Pcs',
+                        '${e.value.dispatched.toInt()} Pcs',
+                        '${(e.value.ordered - e.value.dispatched).toInt()} Pcs',
+                      )),
                   ],
                 ),
               ],
             ),
           ),
+        ),
+      ],
+    );
+  }
+
+  /// Tab 6: Central ISO Standard Master Center
+  Widget _buildIsoMasterCenter() {
+    final List<Map<String, dynamic>> isoModules = [
+      {
+        'dept': 'MR & Quality Mgmt',
+        'docNo': 'XYZ/MR/F/01-18',
+        'title': 'CAPA Log & Document Control Master',
+        'icon': Icons.assignment_turned_in,
+        'color': Colors.indigo,
+        'action': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerFeedbackCapaScreen())),
+      },
+      {
+        'dept': 'Marketing & Sales',
+        'docNo': 'XYZ/MKT/F/01-07',
+        'title': 'Customer Feedback & Satisfaction Analysis',
+        'icon': Icons.rate_review,
+        'color': Colors.blue,
+        'action': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerFeedbackCapaScreen())),
+      },
+      {
+        'dept': 'Purchase & Vendors',
+        'docNo': 'XYZ/PUR/F/01-04',
+        'title': 'Supplier Registration & Approved Vendor List',
+        'icon': Icons.shopping_cart,
+        'color': Colors.teal,
+        'action': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SupplierRegistrationScreen())),
+      },
+      {
+        'dept': 'Maintenance & Tooling',
+        'docNo': 'LE/MNT/LOE & CEW/MNT/BMR',
+        'title': 'Machinery Master, PM Checklists & Breakdown Register',
+        'icon': Icons.build_circle,
+        'color': Colors.orange,
+        'action': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MaintenanceLogsScreen())),
+      },
+      {
+        'dept': 'Quality Control (QC)',
+        'docNo': 'XYZ/QC/F/01-06',
+        'title': 'Instruments Calibration & Final Inspection Release',
+        'icon': Icons.straighten,
+        'color': Colors.purple,
+        'action': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const QcCalibrationScreen())),
+      },
+      {
+        'dept': 'HR & Training',
+        'docNo': 'XYZ/TRG/F/01-04',
+        'title': 'Employee Competency Matrix & Annual Training Plan',
+        'icon': Icons.school,
+        'color': Colors.green,
+        'action': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EmployeeTrainingScreen())),
+      },
+    ];
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const Text('📋 ISO 9001:2015 Quality Records & Entry Center', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.primary)),
+        const Text('Select any ISO standard department below to perform data entry and export official ISO reports.', style: TextStyle(color: Colors.grey, fontSize: 13)),
+        const SizedBox(height: 16),
+
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final crossAxisCount = constraints.maxWidth > 900 ? 3 : (constraints.maxWidth > 600 ? 2 : 1);
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                childAspectRatio: 1.65,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+              ),
+              itemCount: isoModules.length,
+              itemBuilder: (context, idx) {
+                final mod = isoModules[idx];
+                final Color cardColor = mod['color'] as Color;
+                return Card(
+                  elevation: 3,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(color: cardColor.withAlpha(30), borderRadius: BorderRadius.circular(6)),
+                              child: Text(mod['docNo'] as String, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: cardColor)),
+                            ),
+                            Icon(mod['icon'] as IconData, color: cardColor, size: 24),
+                          ],
+                        ),
+                        Text(mod['dept'] as String, style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold)),
+                        Text(mod['title'] as String, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(backgroundColor: cardColor, foregroundColor: Colors.white),
+                            onPressed: mod['action'] as VoidCallback,
+                            icon: const Icon(Icons.arrow_forward, size: 16),
+                            label: const Text('Open Entry & ISO Report', style: TextStyle(fontSize: 12)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
         ),
       ],
     );

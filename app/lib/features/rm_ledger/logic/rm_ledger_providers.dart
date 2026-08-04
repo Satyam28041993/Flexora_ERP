@@ -25,17 +25,20 @@ final rmReturnsStreamProvider = StreamProvider<List<RmReturnModel>>((ref) {
 });
 
 /// Calculated Provider for Store Roll Stock Balances (OnHand = In - Issued + Returned)
+/// Grouped by Material + Web Size + Vendor/Supplier Name!
 final rmStockBalancesProvider = Provider<List<RmStockBalanceModel>>((ref) {
   final stockIns = ref.watch(rmStockInsStreamProvider).value ?? [];
   final issues = ref.watch(rmIssuesStreamProvider).value ?? [];
   final returns = ref.watch(rmReturnsStreamProvider).value ?? [];
 
-  final Map<String, ({double inRmt, double issuedRmt, double returnedRmt, double totalCost, double totalSqMtrIn})> map = {};
+  final Map<String, ({String supplier, double inRmt, double issuedRmt, double returnedRmt, double totalCost, double totalSqMtrIn})> map = {};
 
   for (final item in stockIns) {
-    final key = '${item.material.toUpperCase().trim()}_${item.webSizeMm.toInt()}';
-    final existing = map[key] ?? (inRmt: 0.0, issuedRmt: 0.0, returnedRmt: 0.0, totalCost: 0.0, totalSqMtrIn: 0.0);
+    final supp = item.supplier.trim().isEmpty ? 'Avery Dennison' : item.supplier.trim();
+    final key = '${item.material.toUpperCase().trim()}#${item.webSizeMm.toInt()}#$supp';
+    final existing = map[key] ?? (supplier: supp, inRmt: 0.0, issuedRmt: 0.0, returnedRmt: 0.0, totalCost: 0.0, totalSqMtrIn: 0.0);
     map[key] = (
+      supplier: supp,
       inRmt: existing.inRmt + item.rmtIn,
       issuedRmt: existing.issuedRmt,
       returnedRmt: existing.returnedRmt,
@@ -45,9 +48,11 @@ final rmStockBalancesProvider = Provider<List<RmStockBalanceModel>>((ref) {
   }
 
   for (final item in issues) {
-    final key = '${item.material.toUpperCase().trim()}_${item.webSizeMm.toInt()}';
-    final existing = map[key] ?? (inRmt: 0.0, issuedRmt: 0.0, returnedRmt: 0.0, totalCost: 0.0, totalSqMtrIn: 0.0);
+    final supp = item.supplier.trim().isEmpty ? 'Avery Dennison' : item.supplier.trim();
+    final key = '${item.material.toUpperCase().trim()}#${item.webSizeMm.toInt()}#$supp';
+    final existing = map[key] ?? (supplier: supp, inRmt: 0.0, issuedRmt: 0.0, returnedRmt: 0.0, totalCost: 0.0, totalSqMtrIn: 0.0);
     map[key] = (
+      supplier: supp,
       inRmt: existing.inRmt,
       issuedRmt: existing.issuedRmt + item.rmtIssued,
       returnedRmt: existing.returnedRmt,
@@ -57,9 +62,11 @@ final rmStockBalancesProvider = Provider<List<RmStockBalanceModel>>((ref) {
   }
 
   for (final item in returns) {
-    final key = '${item.material.toUpperCase().trim()}_${item.webSizeMm.toInt()}';
-    final existing = map[key] ?? (inRmt: 0.0, issuedRmt: 0.0, returnedRmt: 0.0, totalCost: 0.0, totalSqMtrIn: 0.0);
+    final supp = item.supplier.trim().isEmpty ? 'Surya Paper' : item.supplier.trim();
+    final key = '${item.material.toUpperCase().trim()}#${item.webSizeMm.toInt()}#$supp';
+    final existing = map[key] ?? (supplier: supp, inRmt: 0.0, issuedRmt: 0.0, returnedRmt: 0.0, totalCost: 0.0, totalSqMtrIn: 0.0);
     map[key] = (
+      supplier: supp,
       inRmt: existing.inRmt,
       issuedRmt: existing.issuedRmt,
       returnedRmt: existing.returnedRmt + item.rmtReturned,
@@ -70,13 +77,15 @@ final rmStockBalancesProvider = Provider<List<RmStockBalanceModel>>((ref) {
 
   final List<RmStockBalanceModel> result = [];
   map.forEach((key, val) {
-    final parts = key.split('_');
-    final matName = parts.first;
-    final webSize = double.tryParse(parts.last) ?? 100.0;
+    final parts = key.split('#');
+    final matName = parts[0];
+    final webSize = double.tryParse(parts[1]) ?? 100.0;
+    final suppName = parts.length > 2 ? parts[2] : val.supplier;
     final avgRate = val.totalSqMtrIn > 0 ? val.totalCost / val.totalSqMtrIn : 29.0;
 
     result.add(RmStockBalanceModel(
       material: matName,
+      supplier: suppName,
       gsmMicron: 80.0,
       webSizeMm: webSize,
       rmtIn: val.inRmt,

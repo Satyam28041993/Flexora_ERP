@@ -10,6 +10,7 @@ abstract class JobCardRepository {
   Future<String> getNextJobCardNumber();
   Future<String> createJobCard(JobCardModel jobCard);
   Future<void> updateJobCard(JobCardModel jobCard);
+  Future<void> updateJobCardStatus(String id, String status);
 
   Future<MasterCardModel?> getMasterCardForJob(String jobCardId);
   Future<String> createMasterCard(MasterCardModel masterCard);
@@ -89,6 +90,14 @@ class FirestoreJobCardRepository implements JobCardRepository {
   @override
   Future<void> updateJobCard(JobCardModel jobCard) async {
     await _jobCards.doc(jobCard.id).update(jobCard.toMap());
+  }
+
+  @override
+  Future<void> updateJobCardStatus(String id, String status) async {
+    await _jobCards.doc(id).update({
+      'status': status,
+      'updatedAt': DateTime.now().toIso8601String(),
+    });
   }
 
   @override

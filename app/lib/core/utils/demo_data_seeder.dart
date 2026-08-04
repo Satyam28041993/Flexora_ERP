@@ -471,4 +471,34 @@ class DemoDataSeeder {
       });
     }
   }
+
+  /// Clears all dummy data (Customers, Products, PO Orders, Job Cards, Production Jobs, Ledgers)
+  /// while PRESERVING RM Substrates Master & Vendor Master Constants!
+  static Future<void> clearNonRmAndVendorData() async {
+    final firestore = FirebaseFirestore.instance;
+
+    final collectionsToClear = [
+      FirestorePaths.customers,
+      FirestorePaths.products,
+      FirestorePaths.orders,
+      FirestorePaths.jobCards,
+      FirestorePaths.shadeCards,
+      FirestorePaths.plates,
+      FirestorePaths.dies,
+      FirestorePaths.qcControlRecords,
+      FirestorePaths.dispatchChallans,
+      FirestorePaths.productionOrders,
+      FirestorePaths.productionLogs,
+      FirestorePaths.rmStockIns,
+      FirestorePaths.rmIssues,
+      FirestorePaths.rmReturns,
+    ];
+
+    for (final col in collectionsToClear) {
+      final snapshot = await firestore.collection(col).get();
+      for (final doc in snapshot.docs) {
+        await doc.reference.delete();
+      }
+    }
+  }
 }

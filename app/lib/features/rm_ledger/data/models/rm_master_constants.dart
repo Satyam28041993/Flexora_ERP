@@ -1,7 +1,7 @@
 /// Master Raw Material Substrates, Suppliers, and GSM/Micron lists
 /// Extracted directly from `Stock Managemaent (4).xlsx` -> `Masters` tab.
 class RmMasterConstants {
-  static const List<String> materials = [
+  static final List<String> materials = [
     'Chromo',
     'PP WHITE',
     'SILVER PAPER',
@@ -35,7 +35,7 @@ class RmMasterConstants {
     'silicon sheet',
   ];
 
-  static const List<String> suppliers = [
+  static final List<String> suppliers = [
     'Avery',
     'Surya',
     'Allied',
@@ -58,6 +58,20 @@ class RmMasterConstants {
     'Verifys',
     'Yupo',
   ];
+
+  static void addSupplier(String supplierName) {
+    final s = supplierName.trim();
+    if (s.isNotEmpty && !suppliers.contains(s)) {
+      suppliers.insert(0, s);
+    }
+  }
+
+  static void addMaterial(String materialName) {
+    final m = materialName.trim();
+    if (m.isNotEmpty && !materials.contains(m)) {
+      materials.insert(0, m);
+    }
+  }
 
   static const List<double> gsmMicrons = [
     50.0,

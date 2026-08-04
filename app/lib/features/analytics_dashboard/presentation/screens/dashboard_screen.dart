@@ -25,25 +25,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkAndAutoSeed();
-    });
+    // Auto-seeding disabled for fresh user trial
   }
 
-  Future<void> _checkAndAutoSeed() async {
-    await _seedDemoData();
-  }
-
-  Future<void> _seedDemoData() async {
+  Future<void> _clearAllDemoData() async {
     if (_isSeeding) return;
     setState(() => _isSeeding = true);
     try {
-      await DemoDataSeeder.seedAll();
+      await DemoDataSeeder.clearNonRmAndVendorData();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('⚡ Flexo ERP presentation demo data seeded successfully!'),
-            backgroundColor: AppTheme.accentEmerald,
+            content: Text('🧹 All dummy data (Customers, SKUs, POs, Job Cards, Ledgers) cleared! System is ready for fresh trial.'),
+            backgroundColor: Colors.green,
             duration: Duration(seconds: 4),
           ),
         );
@@ -51,7 +45,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Seeding notice: $e'), backgroundColor: AppTheme.primary),
+          SnackBar(content: Text('Clear notice: $e'), backgroundColor: AppTheme.danger),
         );
       }
     } finally {
@@ -76,14 +70,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
             child: OutlinedButton.icon(
-              onPressed: _isSeeding ? null : _seedDemoData,
+              onPressed: _isSeeding ? null : _clearAllDemoData,
               icon: _isSeeding
                   ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.bolt, color: AppTheme.accentAmber, size: 18),
-              label: Text(_isSeeding ? 'Seeding Data...' : 'Seed Demo Data'),
+                  : const Icon(Icons.cleaning_services, color: Colors.redAccent, size: 18),
+              label: Text(_isSeeding ? 'Clearing Data...' : '🧹 Clear All Dummy Data'),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppTheme.accentAmber),
-                foregroundColor: AppTheme.accentAmber,
+                side: const BorderSide(color: Colors.redAccent),
+                foregroundColor: Colors.redAccent,
               ),
             ),
           ),

@@ -6,8 +6,12 @@ import '../../../../core/constants/firestore_paths.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../customer_master/data/models/customer_model.dart';
 import '../../../customer_master/logic/customer_providers.dart';
+import '../../../customer_master/presentation/screens/customer_form_screen.dart';
+import '../../../job_card_master/data/models/job_card_model.dart';
+import '../../../job_card_master/logic/job_card_providers.dart';
 import '../../../product_master/data/models/product_model.dart';
 import '../../../product_master/logic/product_providers.dart';
+import '../../../product_master/presentation/screens/product_form_screen.dart';
 import '../../../rm_ledger/data/models/rm_master_constants.dart';
 import '../../data/models/production_job_model.dart';
 import '../../logic/production_providers.dart';
@@ -24,6 +28,7 @@ class NewProductionJobDialog extends ConsumerStatefulWidget {
 class _NewProductionJobDialogState extends ConsumerState<NewProductionJobDialog> {
   final _formKey = GlobalKey<FormState>();
 
+  JobCardModel? _selectedJobCard;
   CustomerModel? _selectedCustomer;
   ProductModel? _selectedProduct;
 
@@ -190,11 +195,16 @@ class _NewProductionJobDialogState extends ConsumerState<NewProductionJobDialog>
     final nextDocNoAsync = ref.watch(nextJobDocNoFutureProvider);
 
     final dateFormat = DateFormat('dd-MM-yyyy');
+    final screenHeight = MediaQuery.of(context).size.height;
 
     return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 800),
+        constraints: BoxConstraints(
+          maxWidth: 850,
+          maxHeight: screenHeight * 0.88,
+        ),
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
@@ -216,55 +226,218 @@ class _NewProductionJobDialogState extends ConsumerState<NewProductionJobDialog>
                 const Divider(),
                 const SizedBox(height: 8),
 
-                // Customer & Product Link Pickers
+                // 1. Job Card Auto-Fill Selection Dropdown
+                Consumer(
+                  builder: (context, ref, child) {
+                    final jobCardsAsync = ref.watch(jobCardsStreamProvider);
+                    return jobCardsAsync.when(
+                      data: (jobCards) {
+                        return Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.blue.shade200),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: const [
+                                  Icon(Icons.assignment, color: AppTheme.primary, size: 18),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Select Issued Job Card (Auto-Fill Production Entry)',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.primary),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Autocomplete<JobCardModel>(
+                                displayStringForOption: (j) => '${j.jobCardNo} - ${j.productName} (${j.customerName})',
+                                optionsBuilder: (TextEditingValue textEditingValue) {
+                                  if (textEditingValue.text.isEmpty) {
+                                    return jobCards;
+                                  }
+                                  final q = textEditingValue.text.toLowerCase();
+                                  return jobCards.where((j) =>
+                                      j.jobCardNo.toLowerCase().contains(q) ||
+                                      j.productName.toLowerCase().contains(q) ||
+                                      j.customerName.toLowerCase().contains(q) ||
+                                      j.poNumber.toLowerCase().contains(q));
+                                },
+                                onSelected: (j) {
+                                  setState(() {
+                                    _selectedJobCard = j;
+                                    _jobDocNoController.text = j.jobCardNo;
+                                    _clientNameController.text = j.customerName;
+                                    _poNoController.text = j.poNumber;
+                                    _matDescController.text = j.productName;
+                                    _reqQtyController.text = j.targetOrderQty.toString();
+                                    if (j.ups > 0) _upsController.text = j.ups.toString();
+                                    if (j.paperSize > 0) _paperSizeController.text = j.paperSize.toString();
+                                    _labelSizeController.text = '${j.paperSize.toInt()} mm';
+                                  });
+                                },
+                                fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                                  if (_selectedJobCard != null && controller.text.isEmpty) {
+                                    controller.text = '${_selectedJobCard!.jobCardNo} - ${_selectedJobCard!.productName} (${_selectedJobCard!.customerName})';
+                                  }
+                                  return TextFormField(
+                                    controller: controller,
+                                    focusNode: focusNode,
+                                    decoration: const InputDecoration(
+                                      labelText: '🔍 Search & Select Job Card (by Job Card No, Product Name, Customer)',
+                                      hintText: 'Type 08/013 or PANIDA...',
+                                      prefixIcon: Icon(Icons.search, color: AppTheme.primary),
+                                      fillColor: Colors.white,
+                                      filled: true,
+                                    ),
+                                  );
+                                },
+                                optionsViewBuilder: (context, onSelected, options) {
+                                  return Align(
+                                    alignment: Alignment.topLeft,
+                                    child: Material(
+                                      elevation: 6,
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: ConstrainedBox(
+                                        constraints: const BoxConstraints(maxWidth: 760, maxHeight: 250),
+                                        child: ListView.builder(
+                                          padding: EdgeInsets.zero,
+                                          itemCount: options.length,
+                                          itemBuilder: (context, index) {
+                                            final j = options.elementAt(index);
+                                            return ListTile(
+                                              leading: const Icon(Icons.assignment, color: AppTheme.primary),
+                                              title: Text('${j.jobCardNo} - ${j.productName}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                              subtitle: Text('${j.customerName} | Target Qty: ${j.targetOrderQty.toInt()} pcs | PO: ${j.poNumber}', style: const TextStyle(fontSize: 11)),
+                                              onTap: () => onSelected(j),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      loading: () => const LinearProgressIndicator(),
+                      error: (_, __) => const SizedBox.shrink(),
+                    );
+                  },
+                ),
+                const SizedBox(height: 14),
+
+                // Customer & Product Link Pickers WITH SHORTCUT '+' BUTTONS
                 Row(
                   children: [
                     Expanded(
-                      child: customersAsync.when(
-                        data: (customers) {
-                          return DropdownButtonFormField<CustomerModel>(
-                            value: _selectedCustomer,
-                            decoration: const InputDecoration(labelText: 'Select Customer / Client'),
-                            items: customers
-                                .map((c) => DropdownMenuItem(value: c, child: Text(c.companyName)))
-                                .toList(),
-                            onChanged: (c) {
-                              setState(() {
-                                _selectedCustomer = c;
-                                if (c != null) _clientNameController.text = c.companyName;
-                              });
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: customersAsync.when(
+                              data: (customers) {
+                                return DropdownButtonFormField<CustomerModel>(
+                                  isExpanded: true,
+                                  value: _selectedCustomer,
+                                  decoration: const InputDecoration(labelText: 'Select Customer / Client'),
+                                  items: customers
+                                      .map((c) => DropdownMenuItem(
+                                            value: c,
+                                            child: Text(c.companyName, overflow: TextOverflow.ellipsis),
+                                          ))
+                                      .toList(),
+                                  onChanged: (c) {
+                                    setState(() {
+                                      _selectedCustomer = c;
+                                      if (c != null) _clientNameController.text = c.companyName;
+                                    });
+                                  },
+                                );
+                              },
+                              loading: () => const LinearProgressIndicator(),
+                              error: (err, _) => Text('Error loading customers: $err'),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          IconButton(
+                            icon: const Icon(Icons.add_circle, color: AppTheme.primary, size: 26),
+                            tooltip: 'Quick Add Customer Master',
+                            onPressed: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const CustomerFormScreen()),
+                              );
+                              ref.invalidate(activeCustomersFutureProvider);
                             },
-                          );
-                        },
-                        loading: () => const LinearProgressIndicator(),
-                        error: (err, _) => Text('Error loading customers: $err'),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: productsAsync.when(
-                        data: (products) {
-                          return DropdownButtonFormField<ProductModel>(
-                            value: _selectedProduct,
-                            decoration: const InputDecoration(labelText: 'Select Product SKU (Auto-Fill)'),
-                            items: products
-                                .map((p) => DropdownMenuItem(value: p, child: Text('${p.productName} (${p.internalSkuCode})')))
-                                .toList(),
-                            onChanged: (p) {
-                              setState(() {
-                                _selectedProduct = p;
-                                if (p != null) {
-                                  _matDescController.text = p.productName;
-                                  _substrateMaterialControllerText(p.labelSpec.substrateMaterial);
-                                  if (p.machineSpec.webWidthMm > 0) _paperSizeController.text = p.machineSpec.webWidthMm.toString();
-                                  if (p.machineSpec.totalUps > 0) _upsController.text = p.machineSpec.totalUps.toString();
-                                }
-                              });
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: productsAsync.when(
+                              data: (products) {
+                                return DropdownButtonFormField<ProductModel>(
+                                  isExpanded: true,
+                                  value: _selectedProduct,
+                                  decoration: const InputDecoration(labelText: 'Select Product SKU (Auto-Fill)'),
+                                  items: products
+                                      .map((p) => DropdownMenuItem(
+                                            value: p,
+                                            child: Text('${p.productName} (${p.internalSkuCode})', overflow: TextOverflow.ellipsis),
+                                          ))
+                                      .toList(),
+                                  onChanged: (p) {
+                                    setState(() {
+                                      _selectedProduct = p;
+                                      if (p != null) {
+                                        _matDescController.text = p.productName;
+                                        _substrateMaterialControllerText(p.labelSpec.substrateMaterial);
+                                        if (p.machineSpec.webWidthMm > 0) _paperSizeController.text = p.machineSpec.webWidthMm.toString();
+                                        if (p.machineSpec.totalUps > 0) _upsController.text = p.machineSpec.totalUps.toString();
+                                      }
+                                    });
+                                  },
+                                );
+                              },
+                              loading: () => const LinearProgressIndicator(),
+                              error: (err, _) => Text('Error loading products: $err'),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          IconButton(
+                            icon: const Icon(Icons.add_circle, color: AppTheme.primary, size: 26),
+                            tooltip: 'Quick Add Product SKU Master',
+                            onPressed: () async {
+                              final newProduct = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ProductFormScreen(
+                                    preselectedCustomerId: _selectedCustomer?.id,
+                                  ),
+                                ),
+                              );
+                              ref.invalidate(productsStreamProvider(_selectedCustomer?.id));
+                              if (newProduct != null && newProduct is ProductModel) {
+                                setState(() {
+                                  _selectedProduct = newProduct;
+                                  _matDescController.text = newProduct.productName;
+                                  _substrateMaterialControllerText(newProduct.labelSpec.substrateMaterial);
+                                  if (newProduct.machineSpec.webWidthMm > 0) _paperSizeController.text = newProduct.machineSpec.webWidthMm.toString();
+                                  if (newProduct.machineSpec.totalUps > 0) _upsController.text = newProduct.machineSpec.totalUps.toString();
+                                });
+                              }
                             },
-                          );
-                        },
-                        loading: () => const LinearProgressIndicator(),
-                        error: (err, _) => Text('Error loading products: $err'),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -295,7 +468,7 @@ class _NewProductionJobDialogState extends ConsumerState<NewProductionJobDialog>
                 ),
                 const SizedBox(height: 12),
 
-                // PO Number, PO Date, Material Description
+                // PO Number, PO Date, Plant Location
                 Row(
                   children: [
                     Expanded(
@@ -389,12 +562,13 @@ class _NewProductionJobDialogState extends ConsumerState<NewProductionJobDialog>
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<String>(
+                        isExpanded: true,
                         value: RmMasterConstants.materials.contains(_materialController.text.trim())
                             ? _materialController.text.trim()
                             : RmMasterConstants.materials.first,
                         decoration: const InputDecoration(labelText: 'Substrate Material *'),
                         items: RmMasterConstants.materials
-                            .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                            .map((m) => DropdownMenuItem(value: m, child: Text(m, overflow: TextOverflow.ellipsis)))
                             .toList(),
                         onChanged: (val) {
                           if (val != null) setState(() => _materialController.text = val);
@@ -420,10 +594,11 @@ class _NewProductionJobDialogState extends ConsumerState<NewProductionJobDialog>
                     const SizedBox(width: 12),
                     Expanded(
                       child: DropdownButtonFormField<String>(
+                        isExpanded: true,
                         value: _pendingSubStatus,
                         decoration: const InputDecoration(labelText: 'Pending Sub-Status *'),
                         items: PendingSubStatus.values
-                            .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                            .map((s) => DropdownMenuItem(value: s, child: Text(s, overflow: TextOverflow.ellipsis)))
                             .toList(),
                         onChanged: (val) {
                           if (val != null) setState(() => _pendingSubStatus = val);
@@ -442,44 +617,51 @@ class _NewProductionJobDialogState extends ConsumerState<NewProductionJobDialog>
                     border: Border.all(color: Colors.blue.shade300),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      Column(
-                        children: [
-                          const Text('Repeat (Inches)', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
-                          Text('${_calcRepeatInches.toStringAsFixed(3)}"', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.primary)),
-                        ],
-                      ),
-                      Column(
-                        children: [
-                          const Text('L.P. Meter (Formula)', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
-                          Text(_calcLpMeter.toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blue)),
-                        ],
-                      ),
-                      Column(
-                        children: [
-                          const Text('Net Req RMT', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
-                          Text('${_calcReqRmt.toStringAsFixed(1)} RMT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.green.shade800)),
-                        ],
-                      ),
-                      Column(
-                        children: [
-                          const Text('Wastage RMT', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
-                          Text('+${double.tryParse(_wastageRmtController.text.trim()) ?? 300.0} RMT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.amber.shade900)),
-                        ],
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(color: Colors.green.shade800, borderRadius: BorderRadius.circular(6)),
-                        child: Column(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        Column(
                           children: [
-                            const Text('Total RMT (with Wastage)', style: TextStyle(fontSize: 10, color: Colors.white70, fontWeight: FontWeight.bold)),
-                            Text('${_calcTotalRmtWithWastage.toStringAsFixed(1)} RMT', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white)),
+                            const Text('Repeat (Inches)', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                            Text('${_calcRepeatInches.toStringAsFixed(3)}"', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.primary)),
                           ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 24),
+                        Column(
+                          children: [
+                            const Text('L.P. Meter (Formula)', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                            Text(_calcLpMeter.toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blue)),
+                          ],
+                        ),
+                        const SizedBox(width: 24),
+                        Column(
+                          children: [
+                            const Text('Net Req RMT', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                            Text('${_calcReqRmt.toStringAsFixed(1)} RMT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.green.shade800)),
+                          ],
+                        ),
+                        const SizedBox(width: 24),
+                        Column(
+                          children: [
+                            const Text('Wastage RMT', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                            Text('+${double.tryParse(_wastageRmtController.text.trim()) ?? 300.0} RMT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.amber.shade900)),
+                          ],
+                        ),
+                        const SizedBox(width: 24),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(color: Colors.green.shade800, borderRadius: BorderRadius.circular(6)),
+                          child: Column(
+                            children: [
+                              const Text('Total RMT (with Wastage)', style: TextStyle(fontSize: 10, color: Colors.white70, fontWeight: FontWeight.bold)),
+                              Text('${_calcTotalRmtWithWastage.toStringAsFixed(1)} RMT', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),

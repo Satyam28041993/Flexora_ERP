@@ -9,6 +9,12 @@ final productionRepositoryProvider = Provider<ProductionRepository>((ref) {
   return FirestoreProductionRepository(FirebaseFirestore.instance);
 });
 
+/// Stream provider for all production jobs across all stages
+final allProductionJobsStreamProvider = StreamProvider<List<ProductionJobModel>>((ref) {
+  final repo = ref.watch(productionRepositoryProvider);
+  return repo.watchProductionJobs(plantId: DefaultPlant.id);
+});
+
 /// Stream provider for production jobs filtered by stage and optional pending sub-status
 final productionJobsStreamProvider = StreamProvider.family<List<ProductionJobModel>, ({String? stage, String? subStatus})>((ref, args) {
   final repo = ref.watch(productionRepositoryProvider);
