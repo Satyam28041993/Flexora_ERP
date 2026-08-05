@@ -15,6 +15,7 @@ abstract class ProductionRepository {
   Future<void> updateProductionJob(ProductionJobModel job);
   Future<void> updateJobStage(String id, String newStage);
   Future<void> updateJobPendingSubStatus(String id, String newSubStatus);
+  Future<void> deleteProductionJob(String id);
   Future<String> generateNextJobDocNo(String plantId);
 }
 
@@ -84,6 +85,11 @@ class FirestoreProductionRepository implements ProductionRepository {
       'pendingSubStatus': newSubStatus,
       'updatedAt': DateTime.now().toIso8601String(),
     });
+  }
+
+  @override
+  Future<void> deleteProductionJob(String id) async {
+    await _jobs.doc(id).delete();
   }
 
   @override

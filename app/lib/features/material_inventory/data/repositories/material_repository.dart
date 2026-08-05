@@ -9,6 +9,8 @@ abstract class MaterialRepository {
   Stream<List<RollModel>> watchRolls({required String plantId});
   Future<RollModel?> getRoll(String id);
   Future<String> createRoll(RollModel roll);
+  Future<void> updateRoll(RollModel roll);
+  Future<void> deleteRoll(String id);
 
   Future<void> issueRollToJob({
     required String rollId,
@@ -84,6 +86,16 @@ class FirestoreMaterialRepository implements MaterialRepository {
     ).toMap());
 
     return docRef.id;
+  }
+
+  @override
+  Future<void> updateRoll(RollModel roll) async {
+    await _rolls.doc(roll.id).update(roll.toMap());
+  }
+
+  @override
+  Future<void> deleteRoll(String id) async {
+    await _rolls.doc(id).delete();
   }
 
   @override

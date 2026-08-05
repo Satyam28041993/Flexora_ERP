@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/firestore_paths.dart';
+import '../../../../core/constants/production_formulas.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../customer_master/data/models/customer_model.dart';
 import '../../../customer_master/logic/customer_providers.dart';
@@ -703,8 +704,8 @@ class _NewSkuDialogState extends ConsumerState<NewSkuDialog> {
                       machineSpec: MachineSpecModel(
                         webWidthMm: webSize,
                         repeatCylinderMm: (gearZ * 3.175),
-                        acrossUps: ups,
-                        aroundUps: 1,
+                        webUps: ups,
+                        repeatUps: 1,
                       ),
                       processRoute: StandardProcessSteps.defaultRoute,
                       artworkApprovalStatus: 'approved',
@@ -2005,8 +2006,7 @@ class _NewWastageEntryDialogState extends ConsumerState<NewWastageEntryDialog> {
   double get _calcLpMeter {
     final gearZ = double.tryParse(_gearZCtrl.text.trim()) ?? 0;
     final ups = double.tryParse(_upsCtrl.text.trim()) ?? 0;
-    if (gearZ <= 0 || ups <= 0) return 0;
-    return (39.3 * 8.0 * ups) / gearZ;
+    return ProductionFormulas.labelsPerMetre(gearTeethZ: gearZ, ups: ups);
   }
 
   double get _calcOkRmt {
@@ -2218,16 +2218,43 @@ class _NewWastageEntryDialogState extends ConsumerState<NewWastageEntryDialog> {
       actions: [
         TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
         ElevatedButton.icon(
-          onPressed: () {
+          onPressed: () async {
             if (_formKey.currentState!.validate()) {
               final jobNo = _selectedJobDocNo ?? '08/040';
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Logged OK Quantity for Job [$jobNo]! Wastage: ${_calcWastagePercent.toStringAsFixed(1)}%'),
-                  backgroundColor: Colors.green.shade800,
-                ),
+              final okQty = double.tryParse(_okQtyCtrl.text.trim()) ?? 0.0;
+              final web = double.tryParse(_webSizeCtrl.text.trim()) ?? 100.0;
+              final gearZ = int.tryParse(_gearZCtrl.text.trim()) ?? 100;
+              final ups = int.tryParse(_upsCtrl.text.trim()) ?? 1;
+              final issued = double.tryParse(_rmtIssuedCtrl.text.trim()) ?? 0.0;
+              final returned = double.tryParse(_rmtReturnedCtrl.text.trim()) ?? 0.0;
+              final client = availableJobs.firstWhere((j) => j.jobDocNo == jobNo, orElse: () => availableJobs.first).clientName;
+              final mat = _materialCtrl.text.trim().isNotEmpty ? _materialCtrl.text.trim() : 'Chromo';
+              final supp = _vendorCtrl.text.trim().isNotEmpty ? _vendorCtrl.text.trim() : 'Avery Dennison';
+
+              final model = RmJobReconciliationModel(
+                jobDocNo: jobNo,
+                clientName: client,
+                material: mat,
+                supplier: supp,
+                webSizeMm: web,
+                rmtIssued: issued,
+                rmtReturned: returned,
+                okQuantity: okQty,
+                totalUps: ups,
+                gearTeethZ: gearZ,
               );
-              Navigator.of(context).pop();
+
+              await ref.read(rmLedgerRepositoryProvider).addOrUpdateReconciliation(model);
+
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Logged OK Quantity for Job [$jobNo]! Wastage: ${_calcWastagePercent.toStringAsFixed(1)}%'),
+                    backgroundColor: Colors.green.shade800,
+                  ),
+                );
+                Navigator.of(context).pop();
+              }
             }
           },
           style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),

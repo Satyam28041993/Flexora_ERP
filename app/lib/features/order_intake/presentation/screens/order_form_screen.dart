@@ -180,8 +180,8 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
                 machineSpec: MachineSpecModel(
                   webWidthMm: w + 10.0,
                   repeatCylinderMm: 254.0,
-                  acrossUps: 2,
-                  aroundUps: 1,
+                  webUps: 2,
+                  repeatUps: 1,
                 ),
                 processRoute: StandardProcessSteps.defaultRoute,
                 artworkApprovalStatus: 'approved',

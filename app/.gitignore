@@ -47,3 +47,6 @@ app.*.map.json
 # Firebase CLI
 .firebase/
 firebase-debug.log
+
+# Excel/Office temporary lock files (created while a workbook is open)
+~$*

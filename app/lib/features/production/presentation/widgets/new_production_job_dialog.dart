@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/constants/firestore_paths.dart';
+import '../../../../core/constants/production_formulas.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../customer_master/data/models/customer_model.dart';
 import '../../../customer_master/logic/customer_providers.dart';
@@ -107,8 +108,7 @@ class _NewProductionJobDialogState extends ConsumerState<NewProductionJobDialog>
   double get _calcLpMeter {
     final gear = double.tryParse(_gearController.text.trim()) ?? 0;
     final ups = double.tryParse(_upsController.text.trim()) ?? 0;
-    if (gear <= 0 || ups <= 0) return 0.0;
-    return (39.3 * 8.0 * ups) / gear;
+    return ProductionFormulas.labelsPerMetre(gearTeethZ: gear, ups: ups);
   }
 
   double get _calcReqRmt {

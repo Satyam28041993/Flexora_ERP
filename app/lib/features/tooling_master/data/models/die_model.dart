@@ -25,8 +25,11 @@ class DieModel {
 
   final double cylinderRepeatMm;
   final int gearTeethCount; // Z count (e.g. Z-96)
-  final int acrossUps;
-  final int aroundUps;
+  final int webUps;
+  final int repeatUps;
+
+  int get acrossUps => webUps;
+  int get aroundUps => repeatUps;
 
   final String revisionTag; // e.g. Rev 1, Rev 2 (Remade)
   final String remadeNotes; // e.g. Sharpened, Shape Correction
@@ -48,8 +51,8 @@ class DieModel {
     required this.dieCode,
     required this.labelWidthMm,
     required this.labelHeightMm,
-    required this.acrossUps,
-    required this.aroundUps,
+    required this.webUps,
+    required this.repeatUps,
     required this.createdAt,
     required this.createdBy,
     this.customerId = '',
@@ -89,8 +92,8 @@ class DieModel {
       cornerRadiusMm: (map['cornerRadiusMm'] as num?)?.toDouble() ?? 2.0,
       cylinderRepeatMm: (map['cylinderRepeatMm'] as num?)?.toDouble() ?? 300.0,
       gearTeethCount: map['gearTeethCount'] as int? ?? 96,
-      acrossUps: map['acrossUps'] as int? ?? 1,
-      aroundUps: map['aroundUps'] as int? ?? 1,
+      webUps: map['webUps'] as int? ?? (map['acrossUps'] as int? ?? 1),
+      repeatUps: map['repeatUps'] as int? ?? (map['aroundUps'] as int? ?? 1),
       revisionTag: map['revisionTag'] as String? ?? 'Rev 1',
       remadeNotes: map['remadeNotes'] as String? ?? '',
       storageRackBin: map['storageRackBin'] as String? ?? '',
@@ -122,8 +125,10 @@ class DieModel {
       'cornerRadiusMm': cornerRadiusMm,
       'cylinderRepeatMm': cylinderRepeatMm,
       'gearTeethCount': gearTeethCount,
-      'acrossUps': acrossUps,
-      'aroundUps': aroundUps,
+      'webUps': webUps,
+      'repeatUps': repeatUps,
+      'acrossUps': webUps,
+      'aroundUps': repeatUps,
       'revisionTag': revisionTag,
       'remadeNotes': remadeNotes,
       'storageRackBin': storageRackBin,
@@ -137,8 +142,8 @@ class DieModel {
     };
   }
 
-  int get totalUps => acrossUps * aroundUps;
-  String get specLabel => '${labelWidthMm.toStringAsFixed(1)}×${labelHeightMm.toStringAsFixed(1)} mm ($acrossUps×$aroundUps UPS)';
+  int get totalUps => webUps * repeatUps;
+  String get specLabel => '${labelWidthMm.toStringAsFixed(1)}×${labelHeightMm.toStringAsFixed(1)} mm ($webUps Web Up × $repeatUps Repeat Up)';
 }
 
 class DieTypeOptions {

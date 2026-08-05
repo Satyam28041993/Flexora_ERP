@@ -77,20 +77,77 @@ class _OrderListScreenState extends ConsumerState<OrderListScreen> {
   }
 }
 
-class _POCard extends StatelessWidget {
+class _POCard extends ConsumerWidget {
   const _POCard({required this.order});
 
   final OrderModel order;
 
+  void _confirmDelete(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: AppTheme.danger),
+            const SizedBox(width: 8),
+            Text('Delete PO [${order.poNumber}]'),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to delete Purchase Order "${order.poNumber}" for ${order.customerName}?\n\nThis action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              try {
+                final repo = ref.read(orderRepositoryProvider);
+                await repo.deleteOrder(order.id);
+                ref.invalidate(ordersStreamProvider);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('PO [${order.poNumber}] deleted successfully!'),
+                      backgroundColor: Colors.green.shade800,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error deleting PO: $e'),
+                      backgroundColor: AppTheme.danger,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.danger,
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.delete_forever, size: 16),
+            label: const Text('Delete Permanently'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final o = order;
     final dateFormat = DateFormat('dd-MM-yyyy');
 
     return Card(
       elevation: 2,
       child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => OrderDetailScreen(orderId: o.id)),
         ),
@@ -143,7 +200,25 @@ class _POCard extends StatelessWidget {
             ],
           ),
         ),
-        trailing: const Icon(Icons.chevron_right),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit_note, color: AppTheme.primary, size: 22),
+              tooltip: 'Edit PO',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => OrderFormScreen(order: o)),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: AppTheme.danger, size: 20),
+              tooltip: 'Delete PO',
+              onPressed: () => _confirmDelete(context, ref),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right, color: Colors.grey),
+          ],
+        ),
       ),
     );
   }

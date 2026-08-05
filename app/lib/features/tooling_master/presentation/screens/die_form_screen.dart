@@ -112,8 +112,8 @@ class _DieFormScreenState extends ConsumerState<DieFormScreen> {
         cornerRadiusMm: double.parse(_cornerController.text.trim()),
         cylinderRepeatMm: double.parse(_repeatController.text.trim()),
         gearTeethCount: int.parse(_teethController.text.trim()),
-        acrossUps: int.parse(_acrossUpsController.text.trim()),
-        aroundUps: int.parse(_aroundUpsController.text.trim()),
+        webUps: int.parse(_acrossUpsController.text.trim()),
+        repeatUps: int.parse(_aroundUpsController.text.trim()),
         revisionTag: _revisionTagController.text.trim(),
         remadeNotes: _remadeNotesController.text.trim(),
         storageRackBin: _rackBinController.text.trim(),
@@ -244,7 +244,7 @@ class _DieFormScreenState extends ConsumerState<DieFormScreen> {
                 Expanded(
                   child: TextFormField(
                     controller: _acrossUpsController,
-                    decoration: const InputDecoration(labelText: 'Across UPS *'),
+                    decoration: const InputDecoration(labelText: 'Web Up (Across) *'),
                     keyboardType: TextInputType.number,
                     validator: (v) => v == null || int.tryParse(v) == null ? 'Required' : null,
                   ),
@@ -253,7 +253,7 @@ class _DieFormScreenState extends ConsumerState<DieFormScreen> {
                 Expanded(
                   child: TextFormField(
                     controller: _aroundUpsController,
-                    decoration: const InputDecoration(labelText: 'Around UPS *'),
+                    decoration: const InputDecoration(labelText: 'Repeat Up (Around) *'),
                     keyboardType: TextInputType.number,
                     validator: (v) => v == null || int.tryParse(v) == null ? 'Required' : null,
                   ),

@@ -24,6 +24,11 @@ final rmReturnsStreamProvider = StreamProvider<List<RmReturnModel>>((ref) {
   return repo.watchReturns(DefaultPlant.id);
 });
 
+final rmReconciliationsStreamProvider = StreamProvider<List<RmJobReconciliationModel>>((ref) {
+  final repo = ref.watch(rmLedgerRepositoryProvider);
+  return repo.watchReconciliations(DefaultPlant.id);
+});
+
 /// Calculated Provider for Store Roll Stock Balances (OnHand = In - Issued + Returned)
 /// Grouped by Material + Web Size + Vendor/Supplier Name!
 final rmStockBalancesProvider = Provider<List<RmStockBalanceModel>>((ref) {
@@ -81,7 +86,9 @@ final rmStockBalancesProvider = Provider<List<RmStockBalanceModel>>((ref) {
     final matName = parts[0];
     final webSize = double.tryParse(parts[1]) ?? 100.0;
     final suppName = parts.length > 2 ? parts[2] : val.supplier;
-    final avgRate = val.totalSqMtrIn > 0 ? val.totalCost / val.totalSqMtrIn : 29.0;
+    // Excel equivalent: `Balance Stock`!I = IFERROR(SUM(ValueIn)/SUM(SqMtrIn), 0)
+    // No stock-in rows means no known rate — fall back to 0, never a guessed rate.
+    final avgRate = val.totalSqMtrIn > 0 ? val.totalCost / val.totalSqMtrIn : 0.0;
 
     result.add(RmStockBalanceModel(
       material: matName,

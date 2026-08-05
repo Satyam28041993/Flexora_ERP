@@ -184,13 +184,70 @@ class _EmptyProductsState extends StatelessWidget {
   }
 }
 
-class _ProductCard extends StatelessWidget {
+class _ProductCard extends ConsumerWidget {
   const _ProductCard({required this.product});
 
   final ProductModel product;
 
+  void _confirmDelete(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: AppTheme.danger),
+            const SizedBox(width: 8),
+            Text('Delete Product SKU [${product.internalSkuCode}]'),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to delete SKU "${product.productName}" (${product.internalSkuCode}) for ${product.customerName}?\n\nThis action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              try {
+                final repo = ref.read(productRepositoryProvider);
+                await repo.deleteProduct(product.id);
+                ref.invalidate(productsStreamProvider(product.customerId));
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('SKU [${product.productName}] deleted successfully!'),
+                      backgroundColor: Colors.green.shade800,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error deleting SKU: $e'),
+                      backgroundColor: AppTheme.danger,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.danger,
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.delete_forever, size: 16),
+            label: const Text('Delete Permanently'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isArtworkApproved = product.artworkApprovalStatus == ArtworkApprovalStatus.approved;
 
     return Card(
@@ -261,6 +318,23 @@ class _ProductCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.edit_note, color: AppTheme.primary, size: 22),
+                    tooltip: 'Edit SKU',
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(4),
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => ProductFormScreen(product: product)),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: AppTheme.danger, size: 20),
+                    tooltip: 'Delete SKU',
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(4),
+                    onPressed: () => _confirmDelete(context, ref),
                   ),
                 ],
               ),

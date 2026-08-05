@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/constants/firestore_paths.dart';
+import '../../../../core/constants/production_formulas.dart';
 import '../../../../core/services/iso_report_exporter.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../customer_master/logic/customer_providers.dart';
@@ -21,6 +23,7 @@ class RmLedgerScreen extends ConsumerStatefulWidget {
 class _RmLedgerScreenState extends ConsumerState<RmLedgerScreen> with TickerProviderStateMixin {
   late TabController _mainTabController;
   late TabController _subReportTabController;
+  final ScrollController _wastageScrollController = ScrollController();
   String _searchQuery = '';
 
   // Bulk Selection Set
@@ -44,6 +47,7 @@ class _RmLedgerScreenState extends ConsumerState<RmLedgerScreen> with TickerProv
   void dispose() {
     _mainTabController.dispose();
     _subReportTabController.dispose();
+    _wastageScrollController.dispose();
     super.dispose();
   }
 
@@ -64,16 +68,122 @@ class _RmLedgerScreenState extends ConsumerState<RmLedgerScreen> with TickerProv
           TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade800, foregroundColor: Colors.white),
-            onPressed: () {
+            onPressed: () async {
               final count = _selectedRowKeys.length;
-              setState(() => _selectedRowKeys.clear());
+              final repo = ref.read(rmLedgerRepositoryProvider);
+              final tabIndex = _mainTabController.index;
+
               Navigator.of(ctx).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Successfully deleted $count selected records from report!'),
-                  backgroundColor: Colors.red.shade900,
-                ),
-              );
+
+              try {
+                if (tabIndex == 0) {
+                  // Tab 1: Store Rolls On-Hand
+                  for (final key in _selectedRowKeys) {
+                    final parts = key.split('_');
+                    if (parts.length >= 3) {
+                      await repo.deleteStockBalanceGroup(
+                        plantId: DefaultPlant.id,
+                        material: parts[0],
+                        webSizeMm: double.tryParse(parts[1]) ?? 0.0,
+                        supplier: parts[2],
+                      );
+                    }
+                  }
+                  ref.invalidate(rmStockInsStreamProvider);
+                  ref.invalidate(rmIssuesStreamProvider);
+                  ref.invalidate(rmReturnsStreamProvider);
+                } else if (tabIndex == 1) {
+                  // Tab 2: Stock-In
+                  for (final id in _selectedRowKeys) {
+                    await repo.deleteStockIn(id);
+                  }
+                  ref.invalidate(rmStockInsStreamProvider);
+                } else if (tabIndex == 2) {
+                  // Tab 3: Issues
+                  for (final id in _selectedRowKeys) {
+                    await repo.deleteIssue(id);
+                  }
+                  ref.invalidate(rmIssuesStreamProvider);
+                } else if (tabIndex == 3) {
+                  // Tab 4: Returns
+                  for (final id in _selectedRowKeys) {
+                    await repo.deleteReturn(id);
+                  }
+                  ref.invalidate(rmReturnsStreamProvider);
+                } else if (tabIndex == 4) {
+                  // Tab 5: Reconciliations
+                  for (final id in _selectedRowKeys) {
+                    await repo.deleteReconciliation(id);
+                  }
+                  ref.invalidate(rmReconciliationsStreamProvider);
+                } else if (tabIndex == 5) {
+                  // Tab 6: Reports & Master Catalogs
+                  final subIndex = _subReportTabController.index;
+                  if (subIndex == 0) {
+                    final prodRepo = ref.read(productionRepositoryProvider);
+                    final jobs = ref.read(allProductionJobsStreamProvider).value ?? [];
+                    for (final docNo in _selectedRowKeys) {
+                      final matched = jobs.where((j) => j.jobDocNo == docNo).toList();
+                      for (final m in matched) {
+                        await prodRepo.deleteProductionJob(m.id);
+                      }
+                    }
+                    ref.invalidate(allProductionJobsStreamProvider);
+                  } else if (subIndex == 1) {
+                    final custRepo = ref.read(customerRepositoryProvider);
+                    final customers = ref.read(customersStreamProvider).value ?? [];
+                    for (final cName in _selectedRowKeys) {
+                      final matched = customers.where((c) => c.companyName == cName).toList();
+                      for (final m in matched) {
+                        await custRepo.deleteCustomer(m.id);
+                      }
+                    }
+                    ref.invalidate(customersStreamProvider);
+                  } else if (subIndex == 2) {
+                    for (final vName in _selectedRowKeys) {
+                      RmMasterConstants.removeSupplier(vName);
+                      await repo.deleteStockBalanceGroup(
+                        plantId: DefaultPlant.id,
+                        material: '',
+                        webSizeMm: 0,
+                        supplier: vName,
+                      );
+                    }
+                    ref.invalidate(rmStockInsStreamProvider);
+                  } else if (subIndex == 3) {
+                    for (final mName in _selectedRowKeys) {
+                      RmMasterConstants.removeMaterial(mName);
+                      await repo.deleteStockBalanceGroup(
+                        plantId: DefaultPlant.id,
+                        material: mName,
+                        webSizeMm: 0,
+                        supplier: '',
+                      );
+                    }
+                    ref.invalidate(rmStockInsStreamProvider);
+                  }
+                }
+
+                setState(() => _selectedRowKeys.clear());
+
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Successfully deleted $count selected records!'),
+                      backgroundColor: Colors.green.shade800,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error during bulk delete: $e'),
+                      backgroundColor: AppTheme.danger,
+                    ),
+                  );
+                }
+              }
             },
             icon: const Icon(Icons.delete_forever),
             label: const Text('Confirm Bulk Delete'),
@@ -83,22 +193,32 @@ class _RmLedgerScreenState extends ConsumerState<RmLedgerScreen> with TickerProv
     );
   }
 
-  void _confirmSingleDelete(String recordTitle, VoidCallback onDelete) {
+  void _confirmSingleDelete(String recordTitle, dynamic Function() onDelete) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Record Confirmation'),
-        content: Text('Are you sure you want to delete [$recordTitle]?'),
+        content: Text('Are you sure you want to delete [$recordTitle]?\n\nThis action cannot be undone.'),
         actions: [
           TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade800, foregroundColor: Colors.white),
-            onPressed: () {
-              onDelete();
+            onPressed: () async {
               Navigator.of(ctx).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Deleted record [$recordTitle]!'), backgroundColor: Colors.red.shade800),
-              );
+              try {
+                await onDelete();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Deleted record [$recordTitle]!'), backgroundColor: Colors.green.shade800),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error deleting record: $e'), backgroundColor: AppTheme.danger),
+                  );
+                }
+              }
             },
             icon: const Icon(Icons.delete),
             label: const Text('Delete'),
@@ -140,9 +260,9 @@ class _RmLedgerScreenState extends ConsumerState<RmLedgerScreen> with TickerProv
         '${r.netRmtUsed.toInt()} RMT',
         '${r.okQuantity.toInt()} pcs',
         '${r.okQuantityRmt.toStringAsFixed(1)} RMT',
-        '${r.wastageRmt.toStringAsFixed(1)} RMT',
-        '${r.wastageSqMtr.toStringAsFixed(1)} SqM',
-        '${r.wastagePercent.toStringAsFixed(1)}%',
+        '${r.rmWastageRmt.toStringAsFixed(1)} RMT',
+        '${r.rmWastageSqMtr.toStringAsFixed(1)} SqM',
+        '${r.rmWastagePercent.toStringAsFixed(1)}%',
       ]).toList(),
     );
 
@@ -153,7 +273,7 @@ class _RmLedgerScreenState extends ConsumerState<RmLedgerScreen> with TickerProv
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('📊 RM Issue & Paper Roll Stock Ledger (Job-Card Linked)'),
+        title: const Text('📊 RM Stock & Ledger — material-wise (Job-Card Linked)'),
         actions: [
           if (_selectedRowKeys.isNotEmpty)
             Padding(
@@ -190,7 +310,7 @@ class _RmLedgerScreenState extends ConsumerState<RmLedgerScreen> with TickerProv
           controller: _mainTabController,
           isScrollable: true,
           tabs: const [
-            Tab(text: '1. Store Rolls On-Hand'),
+            Tab(text: '1. Material Stock On-Hand'),
             Tab(text: '2. Stock-In (Purchases)'),
             Tab(text: '3. Press Roll Issuance'),
             Tab(text: '4. Press Returns'),
@@ -349,7 +469,18 @@ class _RmLedgerScreenState extends ConsumerState<RmLedgerScreen> with TickerProv
                         IconButton(
                           icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
                           tooltip: 'Delete Entry',
-                          onPressed: () => _confirmSingleDelete('${b.material} ${b.webSizeMm.toInt()}mm (${b.supplier})', () => setState(() {})),
+                          onPressed: () => _confirmSingleDelete('${b.material} ${b.webSizeMm.toInt()}mm (${b.supplier})', () async {
+                            final repo = ref.read(rmLedgerRepositoryProvider);
+                            await repo.deleteStockBalanceGroup(
+                              plantId: DefaultPlant.id,
+                              material: b.material,
+                              webSizeMm: b.webSizeMm,
+                              supplier: b.supplier,
+                            );
+                            ref.invalidate(rmStockInsStreamProvider);
+                            ref.invalidate(rmIssuesStreamProvider);
+                            ref.invalidate(rmReturnsStreamProvider);
+                          }),
                         ),
                       ],
                     )),
@@ -485,7 +616,11 @@ class _RmLedgerScreenState extends ConsumerState<RmLedgerScreen> with TickerProv
                             IconButton(
                               icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
                               tooltip: 'Delete Entry',
-                              onPressed: () => _confirmSingleDelete('Stock In: ${item.supplier} (${item.webSizeMm.toInt()}mm)', () => setState(() {})),
+                              onPressed: () => _confirmSingleDelete('Stock In: ${item.supplier} (${item.webSizeMm.toInt()}mm)', () async {
+                                final repo = ref.read(rmLedgerRepositoryProvider);
+                                await repo.deleteStockIn(item.id);
+                                ref.invalidate(rmStockInsStreamProvider);
+                              }),
                             ),
                           ],
                         )),
@@ -608,7 +743,11 @@ class _RmLedgerScreenState extends ConsumerState<RmLedgerScreen> with TickerProv
                             IconButton(
                               icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
                               tooltip: 'Delete Entry',
-                              onPressed: () => _confirmSingleDelete('Issue Job: ${item.jobDocNo}', () => setState(() {})),
+                              onPressed: () => _confirmSingleDelete('Issue Job: ${item.jobDocNo}', () async {
+                                final repo = ref.read(rmLedgerRepositoryProvider);
+                                await repo.deleteIssue(item.id);
+                                ref.invalidate(rmIssuesStreamProvider);
+                              }),
                             ),
                           ],
                         )),
@@ -731,7 +870,11 @@ class _RmLedgerScreenState extends ConsumerState<RmLedgerScreen> with TickerProv
                             IconButton(
                               icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
                               tooltip: 'Delete Entry',
-                              onPressed: () => _confirmSingleDelete('Return Job: ${item.jobDocNo}', () => setState(() {})),
+                              onPressed: () => _confirmSingleDelete('Return Job: ${item.jobDocNo}', () async {
+                                final repo = ref.read(rmLedgerRepositoryProvider);
+                                await repo.deleteReturn(item.id);
+                                ref.invalidate(rmReturnsStreamProvider);
+                              }),
                             ),
                           ],
                         )),
@@ -749,10 +892,12 @@ class _RmLedgerScreenState extends ConsumerState<RmLedgerScreen> with TickerProv
     );
   }
 
-  /// Tab 5: Job Usage & Wastage Ledger WITH EDIT, DELETE & BULK DELETE
+  /// Tab 5: Job Usage & Wastage Ledger WITH REAL DATA, KPI SUMMARY & FIXED HORIZONTAL SCROLL
   Widget _buildWastageLedgerView() {
     final issues = ref.watch(rmIssuesStreamProvider).value ?? [];
     final returns = ref.watch(rmReturnsStreamProvider).value ?? [];
+    final jobs = ref.watch(allProductionJobsStreamProvider).value ?? [];
+    final savedReconciliations = ref.watch(rmReconciliationsStreamProvider).value ?? [];
 
     final Map<String, ({String client, String mat, String supplier, double web, double issued, double returned})> jobMap = {};
 
@@ -782,21 +927,59 @@ class _RmLedgerScreenState extends ConsumerState<RmLedgerScreen> with TickerProv
 
     final List<RmJobReconciliationModel> reconciliations = [];
 
+    // 1. Add saved reconciliations from Firestore
+    for (final saved in savedReconciliations) {
+      final val = jobMap[saved.jobDocNo];
+      reconciliations.add(RmJobReconciliationModel(
+        id: saved.id,
+        plantId: saved.plantId,
+        date: saved.date,
+        jobDocNo: saved.jobDocNo,
+        clientName: saved.clientName.isNotEmpty ? saved.clientName : (val?.client ?? ''),
+        material: saved.material.isNotEmpty ? saved.material : (val?.mat ?? ''),
+        supplier: saved.supplier.isNotEmpty ? saved.supplier : (val?.supplier ?? 'Avery Dennison'),
+        gsmMicron: saved.gsmMicron,
+        webSizeMm: saved.webSizeMm > 0 ? saved.webSizeMm : (val?.web ?? 160.0),
+        targetRmt: saved.targetRmt,
+        rmtIssued: val != null && val.issued > 0 ? val.issued : saved.rmtIssued,
+        rmtReturned: val != null ? val.returned : saved.rmtReturned,
+        okQuantity: saved.okQuantity,
+        totalUps: saved.totalUps,
+        gearTeethZ: saved.gearTeethZ,
+      ));
+    }
+
+    // 2. Process un-logged jobs from issues/returns
     jobMap.forEach((jobNo, val) {
       if (!reconciliations.any((r) => r.jobDocNo == jobNo)) {
+        final jobMatch = jobs.where((j) => j.jobDocNo.trim() == jobNo.trim()).firstOrNull;
+
+        final netRmt = val.issued - val.returned;
+        final ups = jobMatch != null && jobMatch.ups > 0 ? jobMatch.ups : 2;
+        final gearZ = jobMatch != null && jobMatch.gearTeethCount > 0 ? jobMatch.gearTeethCount : 75;
+
+        double okQty = jobMatch != null && jobMatch.totalReqQty > 0 ? jobMatch.totalReqQty : 0.0;
+        if (okQty <= 0 && netRmt > 0) {
+          // NOTE: 0.88 is a placeholder yield assumption, NOT a confirmed PGPL
+          // business rule — it only estimates Ok Qty when the job card has none.
+          final lpMeter =
+              ProductionFormulas.labelsPerMetre(gearTeethZ: gearZ, ups: ups);
+          okQty = (netRmt * 0.88) * lpMeter;
+        }
+
         reconciliations.add(RmJobReconciliationModel(
           jobDocNo: jobNo,
-          clientName: val.client.isEmpty ? 'RALLIS' : val.client,
-          material: val.mat.isEmpty ? 'Chromo' : val.mat,
+          clientName: jobMatch?.clientName.isNotEmpty == true ? jobMatch!.clientName : (val.client.isEmpty ? 'Client' : val.client),
+          material: jobMatch?.substrateMaterial.isNotEmpty == true ? jobMatch!.substrateMaterial : (val.mat.isEmpty ? 'Substrate' : val.mat),
           supplier: val.supplier.isEmpty ? 'Avery Dennison' : val.supplier,
           gsmMicron: 80.0,
-          webSizeMm: val.web > 0 ? val.web : 160.0,
-          targetRmt: 2600.0,
-          rmtIssued: val.issued > 0 ? val.issued : 1900.0,
+          webSizeMm: jobMatch != null && jobMatch.paperSizeMm > 0 ? jobMatch.paperSizeMm : (val.web > 0 ? val.web : 160.0),
+          targetRmt: jobMatch?.wastageRmt ?? 0.0,
+          rmtIssued: val.issued,
           rmtReturned: val.returned,
-          okQuantity: 12500.0,
-          totalUps: 2,
-          gearTeethZ: 75,
+          okQuantity: okQty,
+          totalUps: ups,
+          gearTeethZ: gearZ,
         ));
       }
     });
@@ -810,13 +993,21 @@ class _RmLedgerScreenState extends ConsumerState<RmLedgerScreen> with TickerProv
           r.webSizeMm.toString().contains(_searchQuery);
     }).toList();
 
+    // Summary Analytics Calculations
+    final totalJobsCount = filtered.length;
+    final totalNetRmt = filtered.fold(0.0, (sum, r) => sum + r.netRmtUsed);
+    final totalOkRmt = filtered.fold(0.0, (sum, r) => sum + r.okQuantityRmt);
+    final totalWastageRmt = filtered.fold(0.0, (sum, r) => sum + r.rmWastageRmt);
+    final overallWastagePct = totalNetRmt > 0 ? (totalWastageRmt / totalNetRmt) * 100.0 : 0.0;
+
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
+        // Header Section
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('📈 Job-wise RM Usage & Production Wastage Ledger (Excel Replica)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.primary)),
+            const Text('📈 Job-wise RM Usage & Production Wastage Ledger', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.primary)),
             Row(
               children: [
                 ElevatedButton.icon(
@@ -836,125 +1027,225 @@ class _RmLedgerScreenState extends ConsumerState<RmLedgerScreen> with TickerProv
           ],
         ),
         const SizedBox(height: 12),
+
+        // TOP KPI ANALYTICS SUMMARY CARDS
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final cardWidth = constraints.maxWidth > 900 ? (constraints.maxWidth - 48) / 5 : (constraints.maxWidth - 24) / 2;
+            return Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                _buildKpiCard('Jobs Reconciled', '$totalJobsCount Jobs', Icons.assignment_turned_in, Colors.blue, cardWidth),
+                _buildKpiCard('Net Used RMT', '${totalNetRmt.toStringAsFixed(0)} RMT', Icons.inventory_2, Colors.indigo, cardWidth),
+                _buildKpiCard('OK Production RMT', '${totalOkRmt.toStringAsFixed(0)} RMT', Icons.check_circle, Colors.green, cardWidth),
+                _buildKpiCard('Total Wastage RMT', '${totalWastageRmt.toStringAsFixed(0)} RMT', Icons.delete_sweep, Colors.orange.shade800, cardWidth),
+                _buildKpiCard(
+                  'Overall Wastage %',
+                  '${overallWastagePct.toStringAsFixed(1)}%',
+                  Icons.pie_chart,
+                  overallWastagePct > 25 ? Colors.red : (overallWastagePct > 15 ? Colors.amber.shade900 : Colors.green.shade800),
+                  cardWidth,
+                  highlight: true,
+                ),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 14),
+
+        // DATA TABLE CARD WITH VISIBLE HORIZONTAL SCROLLBAR
         Card(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columns: [
-                DataColumn(
-                  label: Checkbox(
-                    value: filtered.isNotEmpty && filtered.every((r) => _selectedRowKeys.contains(r.jobDocNo)),
-                    onChanged: (val) {
-                      setState(() {
-                        if (val == true) {
-                          for (final r in filtered) {
-                            _selectedRowKeys.add(r.jobDocNo);
-                          }
-                        } else {
-                          for (final r in filtered) {
-                            _selectedRowKeys.remove(r.jobDocNo);
-                          }
-                        }
-                      });
-                    },
+          elevation: 2,
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                color: Colors.blueGrey.shade50,
+                child: Row(
+                  children: [
+                    const Icon(Icons.table_chart, size: 18, color: AppTheme.primary),
+                    const SizedBox(width: 8),
+                    const Text('Detailed Job Reconciliation & Wastage Audit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.primary)),
+                    const Spacer(),
+                    Text('Showing ${filtered.length} entries (Scroll right ➔ for Wastage % & Actions)', style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontStyle: FontStyle.italic)),
+                  ],
+                ),
+              ),
+              Scrollbar(
+                controller: _wastageScrollController,
+                thumbVisibility: true,
+                trackVisibility: true,
+                child: SingleChildScrollView(
+                  controller: _wastageScrollController,
+                  scrollDirection: Axis.horizontal,
+                  child: DataTable(
+                    headingRowColor: WidgetStateProperty.all(Colors.grey.shade100),
+                    dataRowMinHeight: 48,
+                    columns: [
+                      DataColumn(
+                        label: Checkbox(
+                          value: filtered.isNotEmpty && filtered.every((r) => _selectedRowKeys.contains(r.jobDocNo)),
+                          onChanged: (val) {
+                            setState(() {
+                              if (val == true) {
+                                for (final r in filtered) {
+                                  _selectedRowKeys.add(r.jobDocNo);
+                                }
+                              } else {
+                                for (final r in filtered) {
+                                  _selectedRowKeys.remove(r.jobDocNo);
+                                }
+                              }
+                            });
+                          },
+                        ),
+                      ),
+                      const DataColumn(label: Text('Job Card No *', style: TextStyle(fontWeight: FontWeight.bold))),
+                      const DataColumn(label: Text('Client Name', style: TextStyle(fontWeight: FontWeight.bold))),
+                      const DataColumn(label: Text('Substrate Material', style: TextStyle(fontWeight: FontWeight.bold))),
+                      const DataColumn(label: Text('Paper Web Size', style: TextStyle(fontWeight: FontWeight.bold))),
+                      const DataColumn(label: Text('Paper Supplier', style: TextStyle(fontWeight: FontWeight.bold))),
+                      const DataColumn(label: Text('RMT Issued', style: TextStyle(fontWeight: FontWeight.bold))),
+                      const DataColumn(label: Text('RMT Returned', style: TextStyle(fontWeight: FontWeight.bold))),
+                      const DataColumn(label: Text('Net Used RMT', style: TextStyle(fontWeight: FontWeight.bold))),
+                      const DataColumn(label: Text('OK Label Qty (Pcs)', style: TextStyle(fontWeight: FontWeight.bold))),
+                      const DataColumn(label: Text('OK Qty RMT', style: TextStyle(fontWeight: FontWeight.bold))),
+                      const DataColumn(label: Text('Actual Wastage RMT', style: TextStyle(fontWeight: FontWeight.bold))),
+                      const DataColumn(label: Text('Wastage SqM', style: TextStyle(fontWeight: FontWeight.bold))),
+                      const DataColumn(label: Text('Wastage %', style: TextStyle(fontWeight: FontWeight.bold))),
+                      const DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
+                    ],
+                    rows: filtered.map((r) {
+                      final isSelected = _selectedRowKeys.contains(r.jobDocNo);
+                      final pct = r.rmWastagePercent;
+                      final badgeColor = pct > 25.0 ? Colors.red.shade700 : (pct > 15.0 ? Colors.amber.shade800 : Colors.green.shade700);
+
+                      return DataRow(
+                        selected: isSelected,
+                        cells: [
+                          DataCell(Checkbox(
+                            value: isSelected,
+                            onChanged: (val) {
+                              setState(() {
+                                if (val == true) {
+                                  _selectedRowKeys.add(r.jobDocNo);
+                                } else {
+                                  _selectedRowKeys.remove(r.jobDocNo);
+                                }
+                              });
+                            },
+                          )),
+                          DataCell(Text(r.jobDocNo, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.primary))),
+                          DataCell(Text(r.clientName)),
+                          DataCell(Text(r.material)),
+                          DataCell(Chip(label: Text('${r.webSizeMm.toInt()} mm'), backgroundColor: Colors.blue.shade50, padding: EdgeInsets.zero, visualDensity: VisualDensity.compact)),
+                          DataCell(Chip(label: Text(r.supplier), backgroundColor: Colors.amber.shade100, padding: EdgeInsets.zero, visualDensity: VisualDensity.compact)),
+                          DataCell(Text('${r.rmtIssued.toInt()} RMT')),
+                          DataCell(Text('${r.rmtReturned.toInt()} RMT')),
+                          DataCell(Text('${r.netRmtUsed.toInt()} RMT', style: const TextStyle(fontWeight: FontWeight.bold))),
+                          DataCell(Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.green.shade300)),
+                            child: Text('${r.okQuantity.toInt()} pcs', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                          )),
+                          DataCell(Text('${r.okQuantityRmt.toStringAsFixed(1)} RMT', style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.green))),
+                          DataCell(
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(4)),
+                              child: Text(
+                                '${r.rmWastageRmt.toStringAsFixed(1)} RMT',
+                                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade900),
+                              ),
+                            ),
+                          ),
+                          DataCell(Text('${r.rmWastageSqMtr.toStringAsFixed(1)} SqM', style: const TextStyle(fontWeight: FontWeight.w600))),
+                          DataCell(
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: badgeColor,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '${r.rmWastagePercent.toStringAsFixed(1)}%',
+                                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 12),
+                              ),
+                            ),
+                          ),
+                          DataCell(Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit_note, color: AppTheme.primary, size: 18),
+                                tooltip: 'Edit OK Qty & Wastage',
+                                onPressed: () => showDialog(
+                                  context: context,
+                                  builder: (_) => NewWastageEntryDialog(initialJobDocNo: r.jobDocNo, initialOkQty: r.okQuantity),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                                tooltip: 'Delete Ledger Entry',
+                                onPressed: () => _confirmSingleDelete('Job Reconciliation ${r.jobDocNo}', () async {
+                                  if (r.id.isNotEmpty) {
+                                    await ref.read(rmLedgerRepositoryProvider).deleteReconciliation(r.id);
+                                  }
+                                  ref.invalidate(rmReconciliationsStreamProvider);
+                                }),
+                              ),
+                            ],
+                          )),
+                        ],
+                      );
+                    }).toList(),
                   ),
                 ),
-                const DataColumn(label: Text('Job Card No *', style: TextStyle(fontWeight: FontWeight.bold))),
-                const DataColumn(label: Text('Client Name', style: TextStyle(fontWeight: FontWeight.bold))),
-                const DataColumn(label: Text('Substrate Material', style: TextStyle(fontWeight: FontWeight.bold))),
-                const DataColumn(label: Text('Paper Web Size (mm) *', style: TextStyle(fontWeight: FontWeight.bold))),
-                const DataColumn(label: Text('Paper Vendor / Supplier *', style: TextStyle(fontWeight: FontWeight.bold))),
-                const DataColumn(label: Text('RMT Issued', style: TextStyle(fontWeight: FontWeight.bold))),
-                const DataColumn(label: Text('RMT Returned', style: TextStyle(fontWeight: FontWeight.bold))),
-                const DataColumn(label: Text('Net Used RMT', style: TextStyle(fontWeight: FontWeight.bold))),
-                const DataColumn(label: Text('OK Label Qty (Pcs) *', style: TextStyle(fontWeight: FontWeight.bold))),
-                const DataColumn(label: Text('OK Qty RMT', style: TextStyle(fontWeight: FontWeight.bold))),
-                const DataColumn(label: Text('Actual Wastage RMT', style: TextStyle(fontWeight: FontWeight.bold))),
-                const DataColumn(label: Text('Wastage SqM', style: TextStyle(fontWeight: FontWeight.bold))),
-                const DataColumn(label: Text('Wastage %', style: TextStyle(fontWeight: FontWeight.bold))),
-                const DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
-              ],
-              rows: filtered.map((r) {
-                final isSelected = _selectedRowKeys.contains(r.jobDocNo);
-
-                return DataRow(
-                  selected: isSelected,
-                  cells: [
-                    DataCell(Checkbox(
-                      value: isSelected,
-                      onChanged: (val) {
-                        setState(() {
-                          if (val == true) {
-                            _selectedRowKeys.add(r.jobDocNo);
-                          } else {
-                            _selectedRowKeys.remove(r.jobDocNo);
-                          }
-                        });
-                      },
-                    )),
-                    DataCell(Text(r.jobDocNo, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.primary))),
-                    DataCell(Text(r.clientName)),
-                    DataCell(Text(r.material)),
-                    DataCell(Chip(label: Text('${r.webSizeMm.toInt()} mm'), backgroundColor: Colors.blue.shade50)),
-                    DataCell(Chip(label: Text(r.supplier), backgroundColor: Colors.amber.shade100)),
-                    DataCell(Text('${r.rmtIssued.toInt()} RMT')),
-                    DataCell(Text('${r.rmtReturned.toInt()} RMT')),
-                    DataCell(Text('${r.netRmtUsed.toInt()} RMT', style: const TextStyle(fontWeight: FontWeight.bold))),
-                    DataCell(Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.green.shade300)),
-                      child: Text('${r.okQuantity.toInt()} pcs', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
-                    )),
-                    DataCell(Text('${r.okQuantityRmt.toStringAsFixed(1)} RMT')),
-                    DataCell(
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(4)),
-                        child: Text(
-                          '${r.wastageRmt.toStringAsFixed(1)} RMT',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade900),
-                        ),
-                      ),
-                    ),
-                    DataCell(Text('${r.wastageSqMtr.toStringAsFixed(1)} SqM', style: const TextStyle(fontWeight: FontWeight.w600))),
-                    DataCell(
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: r.wastagePercent > 35 ? Colors.red.shade700 : (r.wastagePercent > 15 ? Colors.amber.shade800 : Colors.green.shade700),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          '${r.wastagePercent.toStringAsFixed(1)}%',
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 12),
-                        ),
-                      ),
-                    ),
-                    DataCell(Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit_note, color: AppTheme.primary, size: 18),
-                          tooltip: 'Edit OK Qty & Wastage',
-                          onPressed: () => showDialog(
-                            context: context,
-                            builder: (_) => NewWastageEntryDialog(initialJobDocNo: r.jobDocNo, initialOkQty: r.okQuantity),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
-                          tooltip: 'Delete Ledger Entry',
-                          onPressed: () => _confirmSingleDelete('Job Reconciliation ${r.jobDocNo}', () => setState(() {})),
-                        ),
-                      ],
-                    )),
-                  ],
-                );
-              }).toList(),
-            ),
+              ),
+            ],
           ),
         ),
       ],
+    );
+  }
+
+  /// Helper widget for KPI Summary Cards
+  Widget _buildKpiCard(String title, String value, IconData icon, Color color, double width, {bool highlight = false}) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: highlight ? color.withAlpha(20) : Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: highlight ? color : Colors.grey.shade200, width: highlight ? 1.5 : 1.0),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withAlpha(8), blurRadius: 4, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: color.withAlpha(30), shape: BoxShape.circle),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(title, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 2),
+                Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: highlight ? color : Colors.black87)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1127,7 +1418,12 @@ class _RmLedgerScreenState extends ConsumerState<RmLedgerScreen> with TickerProv
                         IconButton(
                           icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
                           tooltip: 'Delete SKU',
-                          onPressed: () => _confirmSingleDelete('SKU ${j.jobDocNo}', () => setState(() {})),
+                          onPressed: () => _confirmSingleDelete('SKU ${j.jobDocNo}', () async {
+                            if (j.id.isNotEmpty) {
+                              await ref.read(productionRepositoryProvider).deleteProductionJob(j.id);
+                            }
+                            ref.invalidate(allProductionJobsStreamProvider);
+                          }),
                         ),
                       ],
                     )),
@@ -1290,7 +1586,15 @@ class _RmLedgerScreenState extends ConsumerState<RmLedgerScreen> with TickerProv
                         IconButton(
                           icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
                           tooltip: 'Delete Client',
-                          onPressed: () => _confirmSingleDelete('Client $cKey', () => setState(() {})),
+                          onPressed: () => _confirmSingleDelete('Client $cKey', () async {
+                            final customersAsync = ref.read(customersStreamProvider);
+                            final customers = customersAsync.value ?? [];
+                            final matched = customers.where((c) => c.companyName.toLowerCase() == cKey.toLowerCase()).toList();
+                            for (final c in matched) {
+                              await ref.read(customerRepositoryProvider).deleteCustomer(c.id);
+                            }
+                            ref.invalidate(customersStreamProvider);
+                          }),
                         ),
                       ],
                     )),
@@ -1430,7 +1734,18 @@ class _RmLedgerScreenState extends ConsumerState<RmLedgerScreen> with TickerProv
                         IconButton(
                           icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
                           tooltip: 'Delete Vendor',
-                          onPressed: () => _confirmSingleDelete('Vendor $vKey', () => setState(() {})),
+                          onPressed: () => _confirmSingleDelete('Vendor $vKey', () async {
+                            RmMasterConstants.removeSupplier(vKey);
+                            final repo = ref.read(rmLedgerRepositoryProvider);
+                            await repo.deleteStockBalanceGroup(
+                              plantId: DefaultPlant.id,
+                              material: '',
+                              webSizeMm: 0,
+                              supplier: vKey,
+                            );
+                            ref.invalidate(rmStockInsStreamProvider);
+                            setState(() {});
+                          }),
                         ),
                       ],
                     )),
@@ -1561,7 +1876,18 @@ class _RmLedgerScreenState extends ConsumerState<RmLedgerScreen> with TickerProv
                         IconButton(
                           icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
                           tooltip: 'Delete Material',
-                          onPressed: () => _confirmSingleDelete('Material $mName', () => setState(() {})),
+                          onPressed: () => _confirmSingleDelete('Material $mName', () async {
+                            RmMasterConstants.removeMaterial(mName);
+                            final repo = ref.read(rmLedgerRepositoryProvider);
+                            await repo.deleteStockBalanceGroup(
+                              plantId: DefaultPlant.id,
+                              material: mName,
+                              webSizeMm: 0,
+                              supplier: '',
+                            );
+                            ref.invalidate(rmStockInsStreamProvider);
+                            setState(() {});
+                          }),
                         ),
                       ],
                     )),

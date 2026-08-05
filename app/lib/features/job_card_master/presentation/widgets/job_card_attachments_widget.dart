@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:printing/printing.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/app_print_helper.dart';
 
-/// Reusable Widget displaying downloadable PDF attachments for Job Sheet
+/// Reusable Widget displaying downloadable & printable PDF attachments for Job Sheet
 class JobCardAttachmentsWidget extends StatefulWidget {
   const JobCardAttachmentsWidget({super.key});
 
@@ -62,6 +63,32 @@ class _JobCardAttachmentsWidgetState extends State<JobCardAttachmentsWidget> {
     }
   }
 
+  Future<void> _printPdf(String assetPath, String fileName) async {
+    final printKey = 'print_$fileName';
+    setState(() => _loadingMap[printKey] = true);
+    try {
+      final bytes = await rootBundle.load(assetPath);
+      await AppPrintHelper.printPdfBytes(
+        pdfBytes: bytes.buffer.asUint8List(),
+        documentName: fileName,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error printing $fileName: $e'), backgroundColor: AppTheme.danger),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingMap[printKey] = false);
+    }
+  }
+
+  Future<void> _printAllPdfs() async {
+    for (final item in attachments) {
+      await _printPdf(item['path']!, item['file']!);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -101,10 +128,25 @@ class _JobCardAttachmentsWidgetState extends State<JobCardAttachmentsWidget> {
                     ),
                   ],
                 ),
-                TextButton.icon(
-                  onPressed: _downloadAllPdfs,
-                  icon: const Icon(Icons.download, size: 16, color: AppTheme.primary),
-                  label: const Text('Download All Pages', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                Row(
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: _printAllPdfs,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      ),
+                      icon: const Icon(Icons.print, size: 16),
+                      label: const Text('Print All Pages', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton.icon(
+                      onPressed: _downloadAllPdfs,
+                      icon: const Icon(Icons.download, size: 16, color: AppTheme.primary),
+                      label: const Text('Download All Pages', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -119,6 +161,7 @@ class _JobCardAttachmentsWidgetState extends State<JobCardAttachmentsWidget> {
                 final title = item['title']!;
                 final path = item['path']!;
                 final isLoading = _loadingMap[filename] ?? false;
+                final isPrinting = _loadingMap['print_$filename'] ?? false;
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 8),
@@ -142,6 +185,23 @@ class _JobCardAttachmentsWidgetState extends State<JobCardAttachmentsWidget> {
                         ),
                       ),
                       const SizedBox(width: 10),
+
+                      // Direct Print Button
+                      ElevatedButton.icon(
+                        onPressed: isPrinting ? null : () => _printPdf(path, filename),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                        icon: isPrinting
+                            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Icon(Icons.print, size: 16),
+                        label: Text(isPrinting ? 'Printing...' : 'Direct Print', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Download PDF Button
                       ElevatedButton.icon(
                         onPressed: isLoading ? null : () => _downloadPdf(path, filename),
                         style: ElevatedButton.styleFrom(

@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../../core/constants/production_formulas.dart';
+
 /// Production Job Sub-Statuses for Pending Stage.
 class PendingSubStatus {
   static const String newPending = 'New Pending';
@@ -40,6 +42,12 @@ class ProductionStage {
 /// `New Order Detail and Status Tracking 2026-2027.xlsx`
 @immutable
 class ProductionJobModel {
+  // Printing Schedule constants — single real press machine at PGPL today.
+  // Night shift has no fixed hours (decided case-by-case), so it is just a label, not a time range.
+  static const String defaultPress = 'Lombardy 8 Color Flexo Machine';
+  static const String dayShift = 'Day Shift (8:00 AM - 6:00 PM)';
+  static const String nightShift = 'Night Shift';
+
   final String id;
   final String plantId;
 
@@ -89,6 +97,11 @@ class ProductionJobModel {
   final double boxQty;
   final String billNo;
 
+  // Printing Schedule Planning Fields
+  final DateTime? scheduledDate;
+  final String assignedPress; // Single press today: Lombardy 8 Color Flexo Machine
+  final String scheduledShift; // Day Shift (8am-6pm) or Night Shift (no fixed hours)
+
   final DateTime createdAt;
   final String createdBy;
   final DateTime? updatedAt;
@@ -127,6 +140,9 @@ class ProductionJobModel {
     this.punchStatus = 'Pending',
     this.remark = '',
     this.currentStage = ProductionStage.pending,
+    this.scheduledDate,
+    this.assignedPress = ProductionJobModel.defaultPress,
+    this.scheduledShift = ProductionJobModel.dayShift,
     this.dispatchQty = 0.0,
     this.balanceQty = 0.0,
     this.dispatchDate,
@@ -139,13 +155,11 @@ class ProductionJobModel {
   });
 
   /// Mathematical Formula 1: Repeat in Inches = Gear Teeth Z / 8
-  double get repeatInches => gearTeethCount > 0 ? gearTeethCount / 8.0 : 0.0;
+  double get repeatInches => ProductionFormulas.repeatInches(gearTeethCount);
 
-  /// Mathematical Formula 2: Labels Per Meter (L.P. Meter) = (39.3 * Ups) / RepeatInches
-  double get lpMeter {
-    if (gearTeethCount <= 0 || ups <= 0) return 0.0;
-    return (39.3 * 8.0 * ups) / gearTeethCount;
-  }
+  /// Mathematical Formula 2: Labels Per Meter (L.P. Meter) = (39.3701 * Ups) / RepeatInches
+  double get lpMeter =>
+      ProductionFormulas.labelsPerMetre(gearTeethZ: gearTeethCount, ups: ups);
 
   /// Mathematical Formula 3: Required RMT = Total Req Qty / L.P. Meter
   double get reqRmt {
@@ -189,6 +203,9 @@ class ProductionJobModel {
       punchStatus: map['punchStatus'] as String? ?? 'Pending',
       remark: map['remark'] as String? ?? '',
       currentStage: map['currentStage'] as String? ?? ProductionStage.pending,
+      scheduledDate: map['scheduledDate'] != null ? DateTime.parse(map['scheduledDate'] as String) : null,
+      assignedPress: map['assignedPress'] as String? ?? ProductionJobModel.defaultPress,
+      scheduledShift: map['scheduledShift'] as String? ?? ProductionJobModel.dayShift,
       dispatchQty: (map['dispatchQty'] as num?)?.toDouble() ?? 0.0,
       balanceQty: (map['balanceQty'] as num?)?.toDouble() ?? 0.0,
       dispatchDate: map['dispatchDate'] != null ? DateTime.parse(map['dispatchDate'] as String) : null,
@@ -234,6 +251,9 @@ class ProductionJobModel {
       'punchStatus': punchStatus,
       'remark': remark,
       'currentStage': currentStage,
+      'scheduledDate': scheduledDate?.toIso8601String(),
+      'assignedPress': assignedPress,
+      'scheduledShift': scheduledShift,
       'dispatchQty': dispatchQty,
       'balanceQty': balanceQty,
       'dispatchDate': dispatchDate?.toIso8601String(),

@@ -23,7 +23,9 @@ class _RollListScreenState extends ConsumerState<RollListScreen> {
     final rollsAsync = ref.watch(rollsStreamProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Stores Roll-Level Inventory')),
+      appBar: AppBar(
+        title: const Text('Roll Inventory — tracked by individual Roll ID'),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const RollFormScreen()),
@@ -56,7 +58,33 @@ class _RollListScreenState extends ConsumerState<RollListScreen> {
                 }).toList();
 
                 if (filtered.isEmpty) {
-                  return const Center(child: Text('No rolls found in inventory.'));
+                  // Point users at the right screen: material-wise paper stock
+                  // (including the Excel opening-stock import) lives in the RM
+                  // ledger, not here — this screen is per-physical-roll only.
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.inbox_outlined, size: 40, color: Colors.grey),
+                          SizedBox(height: 12),
+                          Text(
+                            'No individual rolls registered yet.',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            'This screen tracks rolls one-by-one using a Roll ID.\n'
+                            'Material-wise paper stock (supplier / GSM / width) is in\n'
+                            'Materials & Stores → RM Stock & Ledger → "Material Stock On-Hand".',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
                 }
 
                 return ListView.separated(
@@ -76,13 +104,69 @@ class _RollListScreenState extends ConsumerState<RollListScreen> {
   }
 }
 
-class _RollCard extends StatelessWidget {
+class _RollCard extends ConsumerWidget {
   const _RollCard({required this.roll});
 
   final RollModel roll;
 
+  void _confirmDelete(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: AppTheme.danger),
+            const SizedBox(width: 8),
+            Text('Delete Roll [${roll.rollCode}]'),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to delete roll "${roll.rollCode}" (${roll.substrateMaterial})?\n\nThis action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              try {
+                final repo = ref.read(materialRepositoryProvider);
+                await repo.deleteRoll(roll.id);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Roll [${roll.rollCode}] deleted successfully!'),
+                      backgroundColor: Colors.green.shade800,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error deleting roll: $e'),
+                      backgroundColor: AppTheme.danger,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.danger,
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.delete_forever, size: 16),
+            label: const Text('Delete Permanently'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isAvailable = roll.status == RollStatus.available;
     final rmtPercent = roll.originalRmt > 0 ? (roll.availableRmt / roll.originalRmt) : 0.0;
 
@@ -97,14 +181,31 @@ class _RollCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(roll.rollCode, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.primary)),
-                Chip(
-                  label: Text(roll.status.toUpperCase()),
-                  backgroundColor: isAvailable ? Colors.green.shade50 : Colors.orange.shade50,
-                  labelStyle: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: isAvailable ? Colors.green.shade800 : Colors.orange.shade800,
-                  ),
+                Row(
+                  children: [
+                    Chip(
+                      label: Text(roll.status.toUpperCase()),
+                      backgroundColor: isAvailable ? Colors.green.shade50 : Colors.orange.shade50,
+                      labelStyle: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: isAvailable ? Colors.green.shade800 : Colors.orange.shade800,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, color: AppTheme.primary, size: 20),
+                      tooltip: 'Edit Roll Details',
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => RollFormScreen(roll: roll)),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: AppTheme.danger, size: 20),
+                      tooltip: 'Delete Roll',
+                      onPressed: () => _confirmDelete(context, ref),
+                    ),
+                  ],
                 ),
               ],
             ),

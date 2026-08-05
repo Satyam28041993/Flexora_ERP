@@ -120,17 +120,74 @@ class _JobCardListScreenState extends ConsumerState<JobCardListScreen> {
   }
 }
 
-class _JobCardItem extends StatelessWidget {
+class _JobCardItem extends ConsumerWidget {
   const _JobCardItem({required this.jobCard});
 
   final JobCardModel jobCard;
 
+  void _confirmDelete(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: AppTheme.danger),
+            const SizedBox(width: 8),
+            Text('Delete Job Card [${jobCard.jobCardNo}]'),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to delete Job Card "${jobCard.jobCardNo}" for ${jobCard.productName} (${jobCard.customerName})?\n\nThis action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              try {
+                final repo = ref.read(jobCardRepositoryProvider);
+                await repo.deleteJobCard(jobCard.id);
+                ref.invalidate(jobCardsStreamProvider);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Job Card [${jobCard.jobCardNo}] deleted successfully!'),
+                      backgroundColor: Colors.green.shade800,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error deleting Job Card: $e'),
+                      backgroundColor: AppTheme.danger,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.danger,
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.delete_forever, size: 16),
+            label: const Text('Delete Permanently'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Card(
       elevation: 1,
       child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => JobCardDetailScreen(jobCardId: jobCard.id)),
         ),
@@ -178,7 +235,25 @@ class _JobCardItem extends StatelessWidget {
             ],
           ),
         ),
-        trailing: const Icon(Icons.chevron_right),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit_note, color: AppTheme.primary, size: 22),
+              tooltip: 'Edit Job Card',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => JobCardFormScreen(jobCard: jobCard)),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: AppTheme.danger, size: 20),
+              tooltip: 'Delete Job Card',
+              onPressed: () => _confirmDelete(context, ref),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right, color: Colors.grey),
+          ],
+        ),
       ),
     );
   }

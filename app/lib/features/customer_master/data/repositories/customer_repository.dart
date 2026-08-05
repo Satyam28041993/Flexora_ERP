@@ -8,6 +8,7 @@ abstract class CustomerRepository {
   Future<CustomerModel?> getCustomer(String id);
   Future<String> createCustomer(CustomerModel customer);
   Future<void> updateCustomer(CustomerModel customer);
+  Future<void> deleteCustomer(String id);
   Future<List<CustomerModel>> getActiveCustomers({required String plantId});
 }
 
@@ -47,6 +48,11 @@ class FirestoreCustomerRepository implements CustomerRepository {
   @override
   Future<void> updateCustomer(CustomerModel customer) async {
     await _customers.doc(customer.id).update(customer.toMap());
+  }
+
+  @override
+  Future<void> deleteCustomer(String id) async {
+    await _customers.doc(id).delete();
   }
 
   @override

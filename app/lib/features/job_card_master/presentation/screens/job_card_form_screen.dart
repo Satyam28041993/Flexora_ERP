@@ -14,6 +14,8 @@ import '../../../tooling_master/logic/tooling_providers.dart';
 import '../../data/models/job_card_model.dart';
 import '../../logic/job_card_providers.dart';
 import '../../logic/job_sheet_pdf_generator.dart';
+import '../../../order_intake/data/models/order_model.dart';
+import '../../../order_intake/logic/order_providers.dart';
 import '../widgets/job_card_attachments_widget.dart';
 import '../widgets/roll_winding_diagram_widget.dart';
 
@@ -33,6 +35,7 @@ class _JobCardFormScreenState extends ConsumerState<JobCardFormScreen> {
   ProductModel? _selectedProduct;
   PlateModel? _selectedPlate;
   DieModel? _selectedDie;
+  OrderModel? _selectedPO;
 
   late TextEditingController _jobCardNoController;
   late TextEditingController _dateStrController;
@@ -151,6 +154,384 @@ class _JobCardFormScreenState extends ConsumerState<JobCardFormScreen> {
       final calculatedRmt = (orderQty / (labelPerMtr * ups)).roundToDouble();
       _rmtController.text = calculatedRmt.toStringAsFixed(0);
     }
+  }
+
+  List<OrderModel> _getAvailableOpenOrders(List<OrderModel> firestoreOrders) {
+    List<OrderModel> source = firestoreOrders;
+    if (source.isEmpty) {
+      source = [
+        OrderModel(
+          id: 'sample-po-1',
+          plantId: DefaultPlant.id,
+          poNumber: 'PK/MUM/155/2026-2027',
+          poDate: DateTime(2026, 8, 5),
+          customerId: 'cust-rallis',
+          customerName: 'RALLIS INDIA LIMITED',
+          customerGstNo: '27AAACR1234A1Z5',
+          shippingAddress: 'Plot 45, MIDC Industrial Estate, Mumbai',
+          taxableSubtotal: 124805,
+          grandTotalAmount: 147269,
+          createdAt: DateTime.now(),
+          createdBy: 'system',
+          lineItems: const [
+            OrderLineItemModel(
+              id: 'li-1',
+              itemNo: 1,
+              itemName: 'PANIDA 1 LTR (NB) (PG/SKU/001)',
+              quantityPcs: 22900,
+              unitRateRs: 5.45,
+              lineAmountRs: 124805,
+              sizeWidthMm: 280,
+              sizeHeightMm: 143,
+            ),
+          ],
+        ),
+        OrderModel(
+          id: 'sample-po-2',
+          plantId: DefaultPlant.id,
+          poNumber: 'BM/PGPL/26-27/051',
+          poDate: DateTime(2026, 8, 2),
+          customerId: 'cust-bayer',
+          customerName: 'BAYER CROP SCIENCE LTD',
+          customerGstNo: '27AAACB5678B1Z2',
+          shippingAddress: 'Plot 12, GIDC, Vapi',
+          taxableSubtotal: 63000,
+          grandTotalAmount: 74340,
+          createdAt: DateTime.now(),
+          createdBy: 'system',
+          lineItems: const [
+            OrderLineItemModel(
+              id: 'li-2',
+              itemNo: 1,
+              itemName: 'DECIS 250 ML LABEL',
+              quantityPcs: 15000,
+              unitRateRs: 4.20,
+              lineAmountRs: 63000,
+              sizeWidthMm: 210,
+              sizeHeightMm: 120,
+            ),
+          ],
+        ),
+        OrderModel(
+          id: 'sample-po-3',
+          plantId: DefaultPlant.id,
+          poNumber: 'PO:05051',
+          poDate: DateTime(2026, 7, 28),
+          customerId: 'cust-coromandel',
+          customerName: 'COROMANDEL INTERNATIONAL',
+          customerGstNo: '27AAACC9012C1Z9',
+          shippingAddress: 'Industrial Area, Vadodara',
+          taxableSubtotal: 190000,
+          grandTotalAmount: 224200,
+          createdAt: DateTime.now(),
+          createdBy: 'system',
+          lineItems: const [
+            OrderLineItemModel(
+              id: 'li-3',
+              itemNo: 1,
+              itemName: 'GROPLUS 5KG BAG STICKER',
+              quantityPcs: 50000,
+              unitRateRs: 3.80,
+              lineAmountRs: 190000,
+              sizeWidthMm: 300,
+              sizeHeightMm: 180,
+            ),
+          ],
+        ),
+      ];
+    }
+
+    final openOrders = source.where((o) => o.status != 'Completed' && o.status != 'Cancelled').toList();
+
+    if (_selectedCustomer != null) {
+      final custName = _selectedCustomer!.companyName.toLowerCase().trim();
+      final filteredByCust = openOrders.where((o) {
+        return o.customerId == _selectedCustomer!.id ||
+            o.customerName.toLowerCase().trim() == custName ||
+            o.customerName.toLowerCase().contains(custName) ||
+            custName.contains(o.customerName.toLowerCase().trim());
+      }).toList();
+
+      if (filteredByCust.isNotEmpty) return filteredByCust;
+    }
+
+    return openOrders;
+  }
+
+  List<ProductModel> _getAvailableProductsForPO(List<ProductModel> customerProducts) {
+    if (_selectedPO != null && _selectedPO!.lineItems.isNotEmpty) {
+      final List<ProductModel> result = [];
+
+      for (final line in _selectedPO!.lineItems) {
+        final match = customerProducts.where((p) {
+          return p.productName.toLowerCase().trim() == line.itemName.toLowerCase().trim() ||
+              (p.internalSkuCode.isNotEmpty && (p.internalSkuCode == line.ourSkuCode || p.internalSkuCode == line.customerSkuCode));
+        }).firstOrNull;
+
+        if (match != null) {
+          if (!result.contains(match)) result.add(match);
+        } else {
+          final width = line.sizeWidthMm > 0 ? line.sizeWidthMm : 292.0;
+          final height = line.sizeHeightMm > 0 ? line.sizeHeightMm : 137.0;
+          final dynamicProduct = ProductModel(
+            id: 'po-sku-${line.id}',
+            plantId: DefaultPlant.id,
+            internalSkuCode: line.ourSkuCode.isNotEmpty ? line.ourSkuCode : (line.customerSkuCode.isNotEmpty ? line.customerSkuCode : '208280'),
+            customerId: _selectedPO!.customerId,
+            customerName: _selectedPO!.customerName,
+            customerProductCode: line.customerSkuCode.isNotEmpty ? line.customerSkuCode : 'PG/SKU/001',
+            productName: line.itemName.isNotEmpty ? line.itemName : 'PANIDA 1 LTR (NB)',
+            labelSpec: LabelSpecModel(
+              widthMm: width,
+              heightMm: height,
+              substrateMaterial: line.substrateSpec.isNotEmpty ? line.substrateSpec : 'C-MIRRORCOAT',
+              faceMaterial: 'AVERY',
+            ),
+            printSpec: const PrintSpecModel(
+              colorCount: 4,
+              pantoneCodes: 'P 353 C / P 2727 C',
+              varnishType: 'VARNISH',
+            ),
+            machineSpec: MachineSpecModel(
+              webWidthMm: 160.0,
+              repeatCylinderMm: (height + 3.0) * 2.0,
+              webUps: 1,
+              repeatUps: 1,
+              windingDirection: 'F4',
+            ),
+            createdAt: DateTime.now(),
+            createdBy: 'system',
+          );
+          result.add(dynamicProduct);
+        }
+      }
+
+      for (final p in customerProducts) {
+        if (!result.any((item) => item.id == p.id || item.productName == p.productName)) {
+          result.add(p);
+        }
+      }
+
+      return result;
+    }
+
+    if (customerProducts.isNotEmpty) return customerProducts;
+
+    return _getMockDefaultProducts();
+  }
+
+  List<ProductModel> _getMockDefaultProducts() {
+    return [
+      ProductModel(
+        id: 'mock-p1',
+        plantId: DefaultPlant.id,
+        internalSkuCode: '208280',
+        customerId: 'cust-rallis',
+        customerName: 'Rallis India',
+        customerProductCode: 'PG/SKU/001',
+        productName: 'PANIDA 1 LTR (NB)',
+        labelSpec: const LabelSpecModel(
+          widthMm: 292.0,
+          heightMm: 137.0,
+          substrateMaterial: 'C-MIRRORCOAT',
+          faceMaterial: 'AVERY',
+        ),
+        printSpec: const PrintSpecModel(
+          colorCount: 4,
+          pantoneCodes: 'P 353 C / P 2727 C',
+          varnishType: 'VARNISH',
+        ),
+        machineSpec: const MachineSpecModel(
+          webWidthMm: 160.0,
+          repeatCylinderMm: 283.0,
+          webUps: 1,
+          repeatUps: 1,
+          windingDirection: 'F4',
+        ),
+        createdAt: DateTime.now(),
+        createdBy: 'system',
+      ),
+      ProductModel(
+        id: 'mock-p2',
+        plantId: DefaultPlant.id,
+        internalSkuCode: '208281',
+        customerId: 'cust-bayer',
+        customerName: 'BAYER CROP SCIENCE LTD',
+        customerProductCode: 'PG/SKU/002',
+        productName: 'DECIS 250 ML LABEL',
+        labelSpec: const LabelSpecModel(
+          widthMm: 210.0,
+          heightMm: 120.0,
+          substrateMaterial: 'PP WHITE FILM',
+          faceMaterial: 'FASSON FL201',
+        ),
+        printSpec: const PrintSpecModel(
+          colorCount: 6,
+          pantoneCodes: 'PANTONE 186 C / 021 C',
+          varnishType: 'UV GLOSS VARNISH',
+        ),
+        machineSpec: const MachineSpecModel(
+          webWidthMm: 220.0,
+          repeatCylinderMm: 254.0,
+          webUps: 2,
+          repeatUps: 1,
+          windingDirection: 'F2',
+        ),
+        createdAt: DateTime.now(),
+        createdBy: 'system',
+      ),
+    ];
+  }
+
+  void _onPOSelected(OrderModel po, List<CustomerModel> customers, List<ProductModel> allProducts) {
+    setState(() {
+      _selectedPO = po;
+      _poNumberController.text = po.poNumber;
+      _poDateStrController.text = DateFormat('dd-MM-yyyy').format(po.poDate);
+
+      // Auto-select Customer if matching customer found
+      final matchCust = customers.where((c) =>
+          c.id == po.customerId ||
+          c.companyName.toLowerCase().trim() == po.customerName.toLowerCase().trim() ||
+          po.customerName.toLowerCase().contains(c.companyName.toLowerCase())).firstOrNull;
+
+      if (matchCust != null) {
+        _selectedCustomer = matchCust;
+        _customerNameController.text = matchCust.companyName;
+      } else if (po.customerName.isNotEmpty) {
+        _customerNameController.text = po.customerName;
+      }
+
+      // Auto-select first SKU from PO and auto-fill full manufacturing specs!
+      final poProducts = _getAvailableProductsForPO(allProducts);
+      if (poProducts.isNotEmpty) {
+        _onSKUSelected(poProducts.first, isInitialPoSelection: true);
+      }
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Loaded Open PO [${po.poNumber}] for ${po.customerName}'),
+        backgroundColor: AppTheme.primary,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _onSKUSelected(ProductModel product, {bool isInitialPoSelection = false}) {
+    setState(() {
+      _selectedProduct = product;
+      _jobNameController.text = product.productName;
+      _jobCodeController.text = product.internalSkuCode.isNotEmpty ? product.internalSkuCode : '208280';
+
+      // 1. Label Size (Width X Height)
+      final w = product.labelSpec.widthMm > 0 ? product.labelSpec.widthMm.toInt() : 292;
+      final h = product.labelSpec.heightMm > 0 ? product.labelSpec.heightMm.toInt() : 137;
+      _labelSizeController.text = '$w X $h';
+
+      // 2. Gear Size (Teeth Z Count) & Cylinder Repeat Calculation
+      final gearTeeth = product.machineSpec.gearTeethCount > 0
+          ? product.machineSpec.gearTeethCount
+          : (product.machineSpec.repeatCylinderMm > 0 ? (product.machineSpec.repeatCylinderMm / 3.175).round() : 89);
+      _gearSizeController.text = gearTeeth.toString();
+
+      final repeatMm = gearTeeth * 3.175;
+
+      // 3. Label per Meter (Impressions / Meters) Calculation
+      final labelPerMtr = repeatMm > 0 ? (1000.0 / repeatMm) : 3.53;
+      _labelPerMtrController.text = labelPerMtr.toStringAsFixed(2);
+
+      // 4. Paper Size (Web Width mm)
+      final webWidth = product.machineSpec.webWidthMm > 0 ? product.machineSpec.webWidthMm.toInt() : 290;
+      _paperSizeController.text = webWidth.toString();
+
+      // 5. UPS (Web Up / Total Ups)
+      final totalUps = product.machineSpec.totalUps > 0 ? product.machineSpec.totalUps : 1;
+      _upsController.text = totalUps.toString();
+
+      // 6. Substrate & Material
+      _materialAndCodeController.text = product.labelSpec.faceMaterial.isNotEmpty ? product.labelSpec.faceMaterial : 'AVERY';
+      _productMaterialTypeController.text = product.labelSpec.substrateMaterial.isNotEmpty ? product.labelSpec.substrateMaterial : 'C-MIRRORCOAT';
+
+      // 7. Colors & Special Colors
+      final colorCnt = product.printSpec.colorCount;
+      _noOfColorsController.text = colorCnt > 0 ? (colorCnt == 4 ? 'CMYK' : '$colorCnt COLOR') : 'CMYK';
+      _specialColorsController.text = product.printSpec.pantoneCodes.isNotEmpty ? product.printSpec.pantoneCodes : 'P 353 C / P 2727 C';
+      _asPerShadeCard = 'Yes';
+
+      // 8. UV Gloss / Lamination & Mat
+      _uvGlossLaminationController.text = product.printSpec.varnishType.isNotEmpty && product.printSpec.varnishType != 'None'
+          ? product.printSpec.varnishType
+          : 'Gloss UV';
+      _uvMat = product.printSpec.varnishType.toLowerCase().contains('mat') ? 'Yes' : 'No';
+
+      // 9. Numbering & Winding Direction
+      _numbering = product.printSpec.hasNumbering ? 'Yes' : 'No';
+      _rollWindingDirection = product.machineSpec.windingDirection.isNotEmpty ? product.machineSpec.windingDirection : 'Head First';
+
+      // 10. Check PO line item for order quantity
+      if (_selectedPO != null && _selectedPO!.lineItems.isNotEmpty) {
+        final poLine = _selectedPO!.lineItems.where((l) {
+          return l.itemName.toLowerCase().trim() == product.productName.toLowerCase().trim() ||
+              l.ourSkuCode == product.internalSkuCode ||
+              l.customerSkuCode == product.internalSkuCode;
+        }).firstOrNull ?? _selectedPO!.lineItems.first;
+
+        if (poLine.quantityPcs > 0) {
+          _targetQtyController.text = poLine.quantityPcs.toInt().toString();
+          _plannedQtyController.text = (poLine.quantityPcs * 1.03).toInt().toString();
+        }
+      } else if (_targetQtyController.text.isEmpty || _targetQtyController.text == '0') {
+        _targetQtyController.text = '75000';
+        _plannedQtyController.text = '77250';
+      }
+
+      // 11. Recalculate RMT
+      _recalculateRMT();
+    });
+
+    if (!isInitialPoSelection) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Auto-filled specs for SKU [${product.productName}] (Gear: ${_gearSizeController.text}, Paper Size: ${_paperSizeController.text}mm, RMT: ${_rmtController.text})'),
+          backgroundColor: Colors.green.shade800,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  void _showManualPoDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final ctrl = TextEditingController(text: _poNumberController.text);
+        return AlertDialog(
+          title: const Text('Enter Custom PO Number'),
+          content: TextFormField(
+            controller: ctrl,
+            decoration: const InputDecoration(
+              labelText: 'PO Number',
+              hintText: 'e.g. PO:05051 or CUSTOM-PO-99',
+            ),
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _poNumberController.text = ctrl.text.trim();
+                  _selectedPO = null;
+                });
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Set PO'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -434,6 +815,8 @@ class _JobCardFormScreenState extends ConsumerState<JobCardFormScreen> {
     final productsAsync = ref.watch(productsStreamProvider(_selectedCustomer?.id));
     final platesAsync = ref.watch(platesStreamProvider(_selectedProduct?.id));
     final diesAsync = ref.watch(diesStreamProvider(_selectedProduct?.id));
+    final ordersAsync = ref.watch(ordersStreamProvider);
+    final openPOs = _getAvailableOpenOrders(ordersAsync.value ?? []);
 
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
@@ -499,10 +882,63 @@ class _JobCardFormScreenState extends ConsumerState<JobCardFormScreen> {
                     _buildCellInput(controller: _dateStrController, flex: 3),
                   ]),
 
-                  // Grid Row 5: PO No, PO Date
+                  // Grid Row 5: PO No (Smart Open PO Dropdown & Manual Input), PO Date
                   _buildRow([
                     _buildCellLabel('PO No:', flex: 2),
-                    _buildCellInput(controller: _poNumberController, flex: 3),
+                    Expanded(
+                      flex: 3,
+                      child: Container(
+                        height: 34,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          border: Border.all(color: Colors.black, width: 0.5),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<OrderModel>(
+                                  value: openPOs.any((o) => o.id == _selectedPO?.id || o.poNumber == _poNumberController.text)
+                                      ? openPOs.firstWhere((o) => o.id == _selectedPO?.id || o.poNumber == _poNumberController.text)
+                                      : null,
+                                  hint: Text(
+                                    _poNumberController.text.isNotEmpty ? _poNumberController.text : 'Select Open PO...',
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  isExpanded: true,
+                                  isDense: true,
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                                  items: openPOs.map((po) {
+                                    return DropdownMenuItem<OrderModel>(
+                                      value: po,
+                                      child: Text(
+                                        '${po.poNumber} (${po.customerName})',
+                                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    );
+                                  }).toList(),
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      _onPOSelected(val, customersAsync.value ?? [], productsAsync.value ?? []);
+                                    }
+                                  },
+                                ),
+                              ),
+                            ),
+                            InkWell(
+                              onTap: _showManualPoDialog,
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 2),
+                                child: Icon(Icons.edit_note, size: 16, color: AppTheme.primary),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                     _buildCellLabel('PO Date:', flex: 2),
                     _buildCellInput(controller: _poDateStrController, flex: 3),
                   ]),
@@ -565,27 +1001,31 @@ class _JobCardFormScreenState extends ConsumerState<JobCardFormScreen> {
                       child: Container(
                         decoration: BoxDecoration(border: Border.all(color: Colors.black, width: 0.5)),
                         child: productsAsync.when(
-                          data: (products) => DropdownButtonHideUnderline(
-                            child: DropdownButton<ProductModel>(
-                              value: _selectedProduct,
-                              hint: Text(_jobNameController.text),
-                              isExpanded: true,
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
-                              items: products
-                                  .map((p) => DropdownMenuItem(value: p, child: Text('${p.productName} (${p.internalSkuCode})')))
-                                  .toList(),
-                              onChanged: (val) {
-                                if (val != null) {
-                                  setState(() {
-                                    _selectedProduct = val;
-                                    _jobNameController.text = val.productName;
-                                    _recalculateRMT();
-                                  });
-                                }
-                              },
-                            ),
-                          ),
+                          data: (products) {
+                            final availableProducts = _getAvailableProductsForPO(products);
+                            return DropdownButtonHideUnderline(
+                              child: DropdownButton<ProductModel>(
+                                value: availableProducts.any((p) => p.id == _selectedProduct?.id || p.productName == _jobNameController.text)
+                                    ? availableProducts.firstWhere((p) => p.id == _selectedProduct?.id || p.productName == _jobNameController.text)
+                                    : null,
+                                hint: Text(_jobNameController.text.isNotEmpty ? _jobNameController.text : 'Select PO SKU / Job Name...'),
+                                isExpanded: true,
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                                items: availableProducts
+                                    .map((p) => DropdownMenuItem<ProductModel>(
+                                          value: p,
+                                          child: Text('${p.productName} (${p.internalSkuCode.isNotEmpty ? p.internalSkuCode : 'SKU'})'),
+                                        ))
+                                    .toList(),
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    _onSKUSelected(val);
+                                  }
+                                },
+                              ),
+                            );
+                          },
                           loading: () => const LinearProgressIndicator(),
                           error: (_, __) => TextFormField(
                             controller: _jobNameController,

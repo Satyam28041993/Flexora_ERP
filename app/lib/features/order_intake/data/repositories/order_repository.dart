@@ -8,6 +8,7 @@ abstract class OrderRepository {
   Future<OrderModel?> getOrder(String orderId);
   Future<String> createOrder(OrderModel order);
   Future<void> updateOrder(OrderModel order);
+  Future<void> deleteOrder(String id);
 }
 
 class FirestoreOrderRepository implements OrderRepository {
@@ -46,5 +47,10 @@ class FirestoreOrderRepository implements OrderRepository {
   @override
   Future<void> updateOrder(OrderModel order) async {
     await _orders.doc(order.id).update(order.toMap());
+  }
+
+  @override
+  Future<void> deleteOrder(String id) async {
+    await _orders.doc(id).delete();
   }
 }

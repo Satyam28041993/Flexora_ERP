@@ -7,7 +7,9 @@ import '../../data/models/roll_model.dart';
 import '../../logic/material_providers.dart';
 
 class RollFormScreen extends ConsumerStatefulWidget {
-  const RollFormScreen({super.key});
+  const RollFormScreen({super.key, this.roll});
+
+  final RollModel? roll;
 
   @override
   ConsumerState<RollFormScreen> createState() => _RollFormScreenState();
@@ -29,15 +31,16 @@ class _RollFormScreenState extends ConsumerState<RollFormScreen> {
   @override
   void initState() {
     super.initState();
+    final r = widget.roll;
     _codeController = TextEditingController(
-      text: 'ROLL-CHR-${DateTime.now().millisecondsSinceEpoch % 1000}',
+      text: r?.rollCode ?? 'ROLL-CHR-${DateTime.now().millisecondsSinceEpoch % 1000}',
     );
-    _substrateController = TextEditingController(text: 'Chromo Paper');
-    _widthController = TextEditingController(text: '220');
-    _rmtController = TextEditingController(text: '1000');
-    _vendorController = TextEditingController(text: 'Avery Dennison');
-    _lotController = TextEditingController(text: 'LOT-2026-99');
-    _locationController = TextEditingController(text: 'Stores Rack R-1');
+    _substrateController = TextEditingController(text: r?.substrateMaterial ?? 'Chromo Paper');
+    _widthController = TextEditingController(text: r != null ? r.widthMm.toInt().toString() : '220');
+    _rmtController = TextEditingController(text: r != null ? r.availableRmt.toInt().toString() : '1000');
+    _vendorController = TextEditingController(text: r?.vendorName ?? 'Avery Dennison');
+    _lotController = TextEditingController(text: r?.vendorBatchLot ?? 'LOT-2026-99');
+    _locationController = TextEditingController(text: r?.storageLocation ?? 'Stores Rack R-1');
   }
 
   @override
@@ -61,34 +64,40 @@ class _RollFormScreenState extends ConsumerState<RollFormScreen> {
       final repo = ref.read(materialRepositoryProvider);
       final rmt = double.parse(_rmtController.text.trim());
 
+      final isEdit = widget.roll != null;
       final roll = RollModel(
-        id: '',
-        plantId: DefaultPlant.id,
+        id: isEdit ? widget.roll!.id : '',
+        plantId: isEdit ? widget.roll!.plantId : DefaultPlant.id,
         rollCode: _codeController.text.trim().toUpperCase(),
         substrateMaterial: _substrateController.text.trim(),
         widthMm: double.parse(_widthController.text.trim()),
-        originalRmt: rmt,
+        originalRmt: isEdit ? widget.roll!.originalRmt : rmt,
         availableRmt: rmt,
+        status: isEdit ? widget.roll!.status : RollStatus.available,
         vendorName: _vendorController.text.trim(),
         vendorBatchLot: _lotController.text.trim(),
-        receiptDate: DateTime.now(),
+        receiptDate: isEdit ? widget.roll!.receiptDate : DateTime.now(),
         storageLocation: _locationController.text.trim(),
-        createdAt: DateTime.now(),
-        createdBy: 'stores',
+        createdAt: isEdit ? widget.roll!.createdAt : DateTime.now(),
+        createdBy: isEdit ? widget.roll!.createdBy : 'stores',
       );
 
-      await repo.createRoll(roll);
+      if (isEdit) {
+        await repo.updateRoll(roll);
+      } else {
+        await repo.createRoll(roll);
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Roll receipt logged & stock updated')),
+          SnackBar(content: Text(isEdit ? 'Roll [${roll.rollCode}] updated successfully!' : 'Roll receipt logged & stock updated')),
         );
         Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error adding roll: $e'), backgroundColor: AppTheme.danger),
+          SnackBar(content: Text('Error saving roll: $e'), backgroundColor: AppTheme.danger),
         );
       }
     } finally {
@@ -98,8 +107,10 @@ class _RollFormScreenState extends ConsumerState<RollFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isEdit = widget.roll != null;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Goods Receipt — New Material Roll')),
+      appBar: AppBar(title: Text(isEdit ? 'Edit Roll Details [${widget.roll!.rollCode}]' : 'Goods Receipt — New Material Roll')),
       body: Form(
         key: _formKey,
         child: ListView(

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/demo_data_seeder.dart';
+import '../../../../core/utils/pgpl_master_import_data.dart';
+import '../../../../core/utils/pgpl_master_importer.dart';
 import '../../../customer_master/logic/customer_providers.dart';
 import '../../../dispatch_packing/presentation/screens/repeat_order_dialog.dart';
 import '../../../job_card_master/logic/job_card_providers.dart';
@@ -53,6 +55,77 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
   }
 
+  /// One-time import of the PGPL master data held in the Excel workbooks.
+  /// Safe to re-run: anything already present is skipped, never duplicated.
+  Future<void> _importMasterData() async {
+    if (_isSeeding) return;
+
+    final counts = '${PgplMasterImportData.supplierNames.length} suppliers, '
+        '${PgplMasterImportData.customerNames.length} customers, '
+        '${PgplMasterImportData.openingStock.length} opening-stock lines';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Import master data from Excel?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('This will add to Firestore:'),
+            const SizedBox(height: 8),
+            Text('• $counts',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            const Text(
+              'Opening stock is written as dated Stock-In transactions '
+              '(01-Aug-2026), not as a balance, so the ledger stays traceable.\n\n'
+              'Names only — GSTIN, phone and address are left blank for you '
+              'to fill in. Re-running skips anything already imported.',
+              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primary,
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.upload_file),
+            onPressed: () => Navigator.pop(ctx, true),
+            label: const Text('Import'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _isSeeding = true);
+    try {
+      final results = await PgplMasterImporter.importAll();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(results.map((r) => r.toString()).join('\n')),
+          backgroundColor: Colors.green.shade800,
+          duration: const Duration(seconds: 8),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Import failed: $e'), backgroundColor: AppTheme.danger),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSeeding = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ordersAsync = ref.watch(ordersStreamProvider);
@@ -67,6 +140,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       appBar: AppBar(
         title: const Text('Flexora ERP — Executive Operations Dashboard'),
         actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: OutlinedButton.icon(
+              onPressed: _isSeeding ? null : _importMasterData,
+              icon: const Icon(Icons.upload_file, size: 18),
+              label: const Text('Import Excel Master Data'),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppTheme.primary),
+                foregroundColor: AppTheme.primary,
+              ),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
             child: OutlinedButton.icon(

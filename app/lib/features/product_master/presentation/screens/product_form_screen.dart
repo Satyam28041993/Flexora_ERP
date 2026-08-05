@@ -57,6 +57,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
   // Machine Specs
   late TextEditingController _webWidthController;
+  late TextEditingController _gearTeethController;
   late TextEditingController _repeatCylinderController;
   late TextEditingController _acrossUpsController;
   late TextEditingController _aroundUpsController;
@@ -111,9 +112,11 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _hasNumbering = p?.printSpec.hasNumbering ?? false;
 
     _webWidthController = TextEditingController(text: p?.machineSpec.webWidthMm.toString() ?? '220');
-    _repeatCylinderController = TextEditingController(text: p?.machineSpec.repeatCylinderMm.toString() ?? '300');
-    _acrossUpsController = TextEditingController(text: p?.machineSpec.acrossUps.toString() ?? '2');
-    _aroundUpsController = TextEditingController(text: p?.machineSpec.aroundUps.toString() ?? '4');
+    final initialGear = p?.machineSpec.gearTeethCount ?? (p != null && p.machineSpec.repeatCylinderMm > 0 ? (p.machineSpec.repeatCylinderMm / 3.175).round() : 89);
+    _gearTeethController = TextEditingController(text: initialGear.toString());
+    _repeatCylinderController = TextEditingController(text: p?.machineSpec.repeatCylinderMm.toString() ?? '282.5');
+    _acrossUpsController = TextEditingController(text: p?.machineSpec.webUps.toString() ?? '2');
+    _aroundUpsController = TextEditingController(text: p?.machineSpec.repeatUps.toString() ?? '4');
     _punchDieCodeController = TextEditingController(text: p?.machineSpec.punchDieCode ?? '');
     _coreSizeController = TextEditingController(text: p?.machineSpec.coreSizeMm.toString() ?? '76');
     _labelsPerRollController = TextEditingController(text: p?.machineSpec.labelsPerRoll.toString() ?? '1000');
@@ -135,6 +138,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _colorCountController.dispose();
     _pantoneController.dispose();
     _webWidthController.dispose();
+    _gearTeethController.dispose();
     _repeatCylinderController.dispose();
     _acrossUpsController.dispose();
     _aroundUpsController.dispose();
@@ -186,9 +190,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         ),
         machineSpec: MachineSpecModel(
           webWidthMm: double.parse(_webWidthController.text.trim()),
-          repeatCylinderMm: double.parse(_repeatCylinderController.text.trim()),
-          acrossUps: int.parse(_acrossUpsController.text.trim()),
-          aroundUps: int.parse(_aroundUpsController.text.trim()),
+          repeatCylinderMm: (int.tryParse(_gearTeethController.text.trim()) ?? 89) * 3.175,
+          gearTeethCount: int.tryParse(_gearTeethController.text.trim()) ?? 89,
+          webUps: int.parse(_acrossUpsController.text.trim()),
+          repeatUps: int.parse(_aroundUpsController.text.trim()),
           punchDieCode: _punchDieCodeController.text.trim(),
           coreSizeMm: double.parse(_coreSizeController.text.trim()),
           labelsPerRoll: int.parse(_labelsPerRollController.text.trim()),
@@ -474,10 +479,14 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: TextFormField(
-                    controller: _repeatCylinderController,
-                    decoration: const InputDecoration(labelText: 'Cylinder Repeat (mm) *'),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    validator: (v) => v == null || double.tryParse(v) == null ? 'Required' : null,
+                    controller: _gearTeethController,
+                    decoration: const InputDecoration(
+                      labelText: 'Gear Size (Teeth / Z) *',
+                      hintText: 'e.g. 89, 96, 75, 81',
+                      helperText: 'Cylinder Teeth Z count (1 Z = 3.175 mm)',
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (v) => v == null || int.tryParse(v) == null ? 'Required' : null,
                   ),
                 ),
               ],
@@ -488,7 +497,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 Expanded(
                   child: TextFormField(
                     controller: _acrossUpsController,
-                    decoration: const InputDecoration(labelText: 'Across UPS *'),
+                    decoration: const InputDecoration(labelText: 'Web Up (Across) *'),
                     keyboardType: TextInputType.number,
                     validator: (v) => v == null || int.tryParse(v) == null ? 'Required' : null,
                   ),
@@ -497,7 +506,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 Expanded(
                   child: TextFormField(
                     controller: _aroundUpsController,
-                    decoration: const InputDecoration(labelText: 'Around UPS *'),
+                    decoration: const InputDecoration(labelText: 'Repeat Up (Around) *'),
                     keyboardType: TextInputType.number,
                     validator: (v) => v == null || int.tryParse(v) == null ? 'Required' : null,
                   ),

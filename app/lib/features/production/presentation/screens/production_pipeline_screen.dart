@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/models/production_job_model.dart';
 import '../../logic/production_providers.dart';
+import '../dialogs/schedule_job_dialog.dart';
 import '../widgets/new_production_job_dialog.dart';
 
 class ProductionPipelineScreen extends ConsumerStatefulWidget {
@@ -18,6 +19,7 @@ class _ProductionPipelineScreenState extends ConsumerState<ProductionPipelineScr
   late TabController _tabController;
   String _searchQuery = '';
   String? _selectedPendingFilter; // null = All, or PendingSubStatus values
+  DateTime? _selectedScheduleDateFilter = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
 
   // Checkbox Selection Set for Batch Move / Status Updates
   final Set<String> _selectedJobIds = {};
@@ -266,6 +268,10 @@ class _ProductionPipelineScreenState extends ConsumerState<ProductionPipelineScr
               j.materialDescription.toLowerCase().contains(_searchQuery);
         }).toList();
 
+        if (stage == ProductionStage.schedule) {
+          return _buildPrintingScheduleView(filtered);
+        }
+
         if (filtered.isEmpty) {
           return Center(
             child: Column(
@@ -336,6 +342,216 @@ class _ProductionPipelineScreenState extends ConsumerState<ProductionPipelineScr
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (err, _) => Center(child: Text('Error loading production jobs: $err')),
+    );
+  }
+
+  Widget _buildPrintingScheduleView(List<ProductionJobModel> allJobs) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    final List<DateTime> weekDates = List.generate(7, (i) => today.add(Duration(days: i)));
+
+    bool isSameDay(DateTime? a, DateTime b) {
+      if (a == null) return false;
+      return a.year == b.year && a.month == b.month && a.day == b.day;
+    }
+
+    final filteredJobs = allJobs.where((j) {
+      if (_selectedScheduleDateFilter == null) return true;
+      if (j.scheduledDate == null) {
+        return isSameDay(_selectedScheduleDateFilter, today);
+      }
+      return isSameDay(j.scheduledDate, _selectedScheduleDateFilter!);
+    }).toList();
+
+    return Column(
+      children: [
+        // 7-DAY HORIZONTAL WEEKLY PLANNING STRIP
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50.withAlpha(120),
+            border: Border(bottom: BorderSide(color: Colors.blue.shade100)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.date_range, color: AppTheme.primary, size: 20),
+                      const SizedBox(width: 8),
+                      const Text(
+                        '📅 1-Week Printing Execution Plan',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.primary),
+                      ),
+                    ],
+                  ),
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _selectedScheduleDateFilter = null;
+                      });
+                    },
+                    icon: Icon(
+                      Icons.clear_all,
+                      size: 16,
+                      color: _selectedScheduleDateFilter == null ? AppTheme.primary : Colors.grey.shade700,
+                    ),
+                    label: Text(
+                      _selectedScheduleDateFilter == null ? '✓ All Dates View' : 'Show All Dates',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: _selectedScheduleDateFilter == null ? FontWeight.bold : FontWeight.normal,
+                        color: _selectedScheduleDateFilter == null ? AppTheme.primary : Colors.grey.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: weekDates.map((date) {
+                    final isSel = _selectedScheduleDateFilter != null && isSameDay(_selectedScheduleDateFilter, date);
+                    final isTodayDate = isSameDay(date, today);
+
+                    final dayJobs = allJobs.where((j) {
+                      if (j.scheduledDate == null) return isTodayDate;
+                      return isSameDay(j.scheduledDate, date);
+                    }).toList();
+
+                    final dayJobCount = dayJobs.length;
+                    final dayRmt = dayJobs.fold<double>(0.0, (sum, j) => sum + j.totalRmtWithWastage);
+
+                    final dayName = isTodayDate ? 'TODAY' : DateFormat('EEE').format(date).toUpperCase();
+                    final dateStr = DateFormat('dd MMM').format(date);
+
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: InkWell(
+                        onTap: () {
+                          setState(() {
+                            _selectedScheduleDateFilter = date;
+                          });
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: isSel
+                                ? AppTheme.primary
+                                : (isTodayDate ? Colors.blue.shade100 : Colors.white),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isSel ? AppTheme.primary : (isTodayDate ? AppTheme.primary : Colors.grey.shade300),
+                              width: isSel || isTodayDate ? 2 : 1,
+                            ),
+                            boxShadow: isSel
+                                ? [BoxShadow(color: AppTheme.primary.withAlpha(60), blurRadius: 4, offset: const Offset(0, 2))]
+                                : null,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Text(
+                                dayName,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: isSel ? Colors.white : (isTodayDate ? AppTheme.primary : Colors.grey.shade700),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                dateStr,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: isSel ? Colors.white : Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: isSel
+                                      ? Colors.white.withAlpha(50)
+                                      : (dayJobCount > 0 ? Colors.green.shade100 : Colors.grey.shade200),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '$dayJobCount Jobs | ${dayRmt.toInt()} RMT',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: isSel ? Colors.white : (dayJobCount > 0 ? Colors.green.shade900 : Colors.grey.shade700),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // FILTERED JOBS LIST FOR PRINTING SCHEDULE
+        Expanded(
+          child: filteredJobs.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.event_busy, size: 48, color: Colors.grey),
+                      const SizedBox(height: 12),
+                      Text(
+                        _selectedScheduleDateFilter != null
+                            ? 'No jobs scheduled for Printing on [${DateFormat('dd-MMM-yyyy').format(_selectedScheduleDateFilter!)}].'
+                            : 'No production jobs in Printing Schedule stage.',
+                        style: const TextStyle(color: AppTheme.textSecondary, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Select another date above or schedule jobs from Pending Queue (Pre-Press).',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  itemCount: filteredJobs.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final job = filteredJobs[index];
+                    final isSelected = _selectedJobIds.contains(job.id);
+                    return _JobCard(
+                      job: job,
+                      isSelected: isSelected,
+                      onToggleSelect: () {
+                        setState(() {
+                          if (isSelected) {
+                            _selectedJobIds.remove(job.id);
+                          } else {
+                            _selectedJobIds.add(job.id);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 
@@ -529,14 +745,77 @@ class _JobCard extends ConsumerWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Edit Button
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined, size: 20, color: AppTheme.primary),
-                  tooltip: 'Edit Job Details',
-                  onPressed: () => showDialog(
-                    context: context,
-                    builder: (_) => NewProductionJobDialog(initialJob: job),
-                  ),
+                // Edit & Delete Buttons
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, size: 20, color: AppTheme.primary),
+                      tooltip: 'Edit Job Details',
+                      onPressed: () => showDialog(
+                        context: context,
+                        builder: (_) => NewProductionJobDialog(initialJob: job),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, size: 20, color: AppTheme.danger),
+                      tooltip: 'Delete Production Job',
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: Row(
+                              children: [
+                                const Icon(Icons.warning_amber_rounded, color: AppTheme.danger),
+                                const SizedBox(width: 8),
+                                Text('Delete Production Job [${job.jobDocNo}]'),
+                              ],
+                            ),
+                            content: Text(
+                              'Are you sure you want to delete Production Job "${job.jobDocNo}" (${job.materialDescription})?\n\nThis action cannot be undone.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(ctx).pop(),
+                                child: const Text('Cancel'),
+                              ),
+                              ElevatedButton.icon(
+                                onPressed: () async {
+                                  Navigator.of(ctx).pop();
+                                  try {
+                                    final repo = ref.read(productionRepositoryProvider);
+                                    await repo.deleteProductionJob(job.id);
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Production Job [${job.jobDocNo}] deleted successfully!'),
+                                          backgroundColor: Colors.green.shade800,
+                                        ),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Error deleting job: $e'),
+                                          backgroundColor: AppTheme.danger,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.danger,
+                                  foregroundColor: Colors.white,
+                                ),
+                                icon: const Icon(Icons.delete_forever, size: 16),
+                                label: const Text('Delete Permanently'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
 
                 // Active Pipeline Movement Controls & Sub-Status Selector
@@ -578,14 +857,11 @@ class _JobCard extends ConsumerWidget {
                       ),
                       const SizedBox(width: 10),
                       ElevatedButton.icon(
-                        onPressed: () async {
-                          final repo = ref.read(productionRepositoryProvider);
-                          await repo.updateJobStage(job.id, ProductionStage.schedule);
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Job ${job.jobDocNo} moved to Printing Schedule ➔'), backgroundColor: Colors.green.shade800),
-                            );
-                          }
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (_) => ScheduleJobDialog(job: job),
+                          );
                         },
                         style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
                         icon: const Icon(Icons.arrow_forward, size: 14),
@@ -599,6 +875,17 @@ class _JobCard extends ConsumerWidget {
                         },
                         icon: const Icon(Icons.arrow_back, size: 14),
                         label: const Text('◀ Back to Pending', style: TextStyle(fontSize: 11)),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (_) => ScheduleJobDialog(job: job),
+                          );
+                        },
+                        icon: const Icon(Icons.calendar_month, size: 14),
+                        label: const Text('Reschedule', style: TextStyle(fontSize: 11)),
                       ),
                       const SizedBox(width: 8),
                       ElevatedButton.icon(

@@ -9,6 +9,7 @@ abstract class ProductRepository {
   Future<ProductModel?> getProduct(String id);
   Future<String> createProduct(ProductModel product);
   Future<void> updateProduct(ProductModel product);
+  Future<void> deleteProduct(String id);
   Future<String> getNextSkuCode({required String plantId});
 
   Stream<List<ArtworkVersionModel>> watchArtworks(String productId);
@@ -61,6 +62,11 @@ class FirestoreProductRepository implements ProductRepository {
   @override
   Future<void> updateProduct(ProductModel product) async {
     await _products.doc(product.id).update(product.toMap());
+  }
+
+  @override
+  Future<void> deleteProduct(String id) async {
+    await _products.doc(id).delete();
   }
 
   @override

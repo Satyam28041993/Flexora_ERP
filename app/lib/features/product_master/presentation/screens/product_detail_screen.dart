@@ -158,8 +158,8 @@ class _TechnicalSpecTab extends StatelessWidget {
           icon: Icons.settings_suggest_outlined,
           children: [
             _buildRow('Web Width', '${machine.webWidthMm} mm'),
-            _buildRow('Cylinder Repeat', '${machine.repeatCylinderMm} mm'),
-            _buildRow('UPS Layout', '${machine.acrossUps} Across × ${machine.aroundUps} Around (Total: ${machine.totalUps} UPS)'),
+            _buildRow('Gear Size', '${machine.gearTeethCount} Teeth (Z) [${machine.repeatCylinderMm.toStringAsFixed(1)} mm]'),
+            _buildRow('UPS Layout', '${machine.webUps} Web Up × ${machine.repeatUps} Repeat Up (Total: ${machine.totalUps} UPS)'),
             if (machine.punchDieCode.isNotEmpty) _buildRow('Punch/Die Code', machine.punchDieCode),
             _buildRow('Core Size', '${machine.coreSizeMm} mm'),
             _buildRow('Labels Per Roll', '${machine.labelsPerRoll}'),

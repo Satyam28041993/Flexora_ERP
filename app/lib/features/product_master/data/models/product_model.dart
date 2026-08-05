@@ -107,8 +107,13 @@ class PrintSpecModel {
 class MachineSpecModel {
   final double webWidthMm;
   final double repeatCylinderMm;
-  final int acrossUps;
-  final int aroundUps;
+  final int gearTeethCount; // Teeth Z count e.g. 89, 96, 75
+  final int webUps;
+  final int repeatUps;
+
+  int get acrossUps => webUps;
+  int get aroundUps => repeatUps;
+
   final String punchDieCode;
   final double coreSizeMm; // 25mm (1"), 76mm (3")
   final int labelsPerRoll;
@@ -119,8 +124,9 @@ class MachineSpecModel {
   const MachineSpecModel({
     required this.webWidthMm,
     required this.repeatCylinderMm,
-    required this.acrossUps,
-    required this.aroundUps,
+    required this.webUps,
+    required this.repeatUps,
+    this.gearTeethCount = 89,
     this.punchDieCode = '',
     this.coreSizeMm = 76.0,
     this.labelsPerRoll = 1000,
@@ -130,11 +136,16 @@ class MachineSpecModel {
   });
 
   factory MachineSpecModel.fromMap(Map<String, dynamic> map) {
+    final repeatMm = (map['repeatCylinderMm'] as num?)?.toDouble() ?? 0.0;
+    final teeth = map['gearTeethCount'] as int? ?? (repeatMm > 0 ? (repeatMm / 3.175).round() : 89);
+    final calculatedRepeat = repeatMm > 0 ? repeatMm : (teeth * 3.175);
+
     return MachineSpecModel(
       webWidthMm: (map['webWidthMm'] as num?)?.toDouble() ?? 0.0,
-      repeatCylinderMm: (map['repeatCylinderMm'] as num?)?.toDouble() ?? 0.0,
-      acrossUps: map['acrossUps'] as int? ?? 1,
-      aroundUps: map['aroundUps'] as int? ?? 1,
+      repeatCylinderMm: calculatedRepeat,
+      gearTeethCount: teeth,
+      webUps: map['webUps'] as int? ?? (map['acrossUps'] as int? ?? 1),
+      repeatUps: map['repeatUps'] as int? ?? (map['aroundUps'] as int? ?? 1),
       punchDieCode: map['punchDieCode'] as String? ?? '',
       coreSizeMm: (map['coreSizeMm'] as num?)?.toDouble() ?? 76.0,
       labelsPerRoll: map['labelsPerRoll'] as int? ?? 1000,
@@ -148,8 +159,11 @@ class MachineSpecModel {
     return {
       'webWidthMm': webWidthMm,
       'repeatCylinderMm': repeatCylinderMm,
-      'acrossUps': acrossUps,
-      'aroundUps': aroundUps,
+      'gearTeethCount': gearTeethCount,
+      'webUps': webUps,
+      'repeatUps': repeatUps,
+      'acrossUps': webUps,
+      'aroundUps': repeatUps,
       'punchDieCode': punchDieCode,
       'coreSizeMm': coreSizeMm,
       'labelsPerRoll': labelsPerRoll,
@@ -159,7 +173,7 @@ class MachineSpecModel {
     };
   }
 
-  int get totalUps => acrossUps * aroundUps;
+  int get totalUps => webUps * repeatUps;
 }
 
 /// Standard Process Step options for Flexographic Label Manufacturing.
@@ -168,6 +182,8 @@ class StandardProcessSteps {
   static const String onlinePunching = 'Online Punching';
   static const String offlinePunching = 'Offline Punching';
   static const String hotFoilStamping = 'Hot Foil Stamping';
+  static const String coldFoiling = 'Cold Foiling';
+  static const String screenPrinting = 'Screen Printing';
   static const String blindEmbossing = 'Blind Embossing';
   static const String uvEmbossing = 'UV Embossing';
   static const String lamination = 'Lamination';
@@ -180,6 +196,8 @@ class StandardProcessSteps {
     onlinePunching,
     offlinePunching,
     hotFoilStamping,
+    coldFoiling,
+    screenPrinting,
     blindEmbossing,
     uvEmbossing,
     lamination,
@@ -275,7 +293,7 @@ class ProductModel {
           : const PrintSpecModel(colorCount: 1),
       machineSpec: map['machineSpec'] != null
           ? MachineSpecModel.fromMap(map['machineSpec'] as Map<String, dynamic>)
-          : const MachineSpecModel(webWidthMm: 0, repeatCylinderMm: 0, acrossUps: 1, aroundUps: 1),
+          : const MachineSpecModel(webWidthMm: 0, repeatCylinderMm: 0, webUps: 1, repeatUps: 1),
       processRoute: (map['processRoute'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??

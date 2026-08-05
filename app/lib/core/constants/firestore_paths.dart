@@ -20,6 +20,7 @@ class FirestorePaths {
   static const String productionLogs = 'production_logs';
   static const String shadeCards = 'shade_cards';
 
+  static const String suppliers = 'suppliers';
   static const String rolls = 'rolls';
   static const String rmStockIns = 'rm_stock_ins';
   static const String rmIssues = 'rm_issues';

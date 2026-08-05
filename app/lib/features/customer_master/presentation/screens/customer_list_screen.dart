@@ -169,13 +169,70 @@ class _EmptyCustomersState extends StatelessWidget {
   }
 }
 
-class _CustomerCard extends StatelessWidget {
+class _CustomerCard extends ConsumerWidget {
   const _CustomerCard({required this.customer});
 
   final CustomerModel customer;
 
+  void _confirmDelete(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: AppTheme.danger),
+            const SizedBox(width: 8),
+            Text('Delete Customer'),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to delete Customer "${customer.companyName}" (${customer.customerCode})?\n\nThis action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              try {
+                final repo = ref.read(customerRepositoryProvider);
+                await repo.deleteCustomer(customer.id);
+                ref.invalidate(customersStreamProvider);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Customer [${customer.companyName}] deleted successfully!'),
+                      backgroundColor: Colors.green.shade800,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error deleting Customer: $e'),
+                      backgroundColor: AppTheme.danger,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.danger,
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.delete_forever, size: 16),
+            label: const Text('Delete Permanently'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isActive = customer.status == CustomerStatus.active;
 
     return Card(
@@ -249,7 +306,25 @@ class _CustomerCard extends StatelessWidget {
             ],
           ),
         ),
-        trailing: const Icon(Icons.chevron_right),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit_note, color: AppTheme.primary, size: 22),
+              tooltip: 'Edit Customer',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => CustomerFormScreen(customer: customer)),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: AppTheme.danger, size: 20),
+              tooltip: 'Delete Customer',
+              onPressed: () => _confirmDelete(context, ref),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right, color: Colors.grey),
+          ],
+        ),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => CustomerDetailScreen(customer: customer),

@@ -104,4 +104,11 @@ class RmMasterConstants {
     300.0,
     330.0,
   ];
+  static void removeMaterial(String name) {
+    materials.removeWhere((m) => m.trim().toLowerCase() == name.trim().toLowerCase());
+  }
+
+  static void removeSupplier(String name) {
+    suppliers.removeWhere((s) => s.trim().toLowerCase() == name.trim().toLowerCase());
+  }
 }

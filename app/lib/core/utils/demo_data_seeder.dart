@@ -113,6 +113,8 @@ class DemoDataSeeder {
         'targetMachineName': 'Lombardy 8-Color Flexo Press (~430mm)',
         'cylinderCircumferenceMm': 355.6,
         'teethCountZ': 88,
+        'webUps': 4,
+        'repeatUps': 2,
         'acrossUps': 4,
         'aroundUps': 2,
         'totalUpsPerImpression': 8,
